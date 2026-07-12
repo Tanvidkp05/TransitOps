@@ -53,6 +53,46 @@ const statusOptions = [
     { value: "Cancelled", label: "Cancelled" },
 ];
 
+const getStepStyle = (stepName, currentStatus) => {
+    const activeColor = "#0ab39c"; // teal
+    const cancelColor = "#f06548"; // red
+    const inactiveColor = "#e9ebec";
+    const inactiveTextColor = "#adb5bd";
+
+    if (currentStatus === "Cancelled") {
+        if (stepName === "Draft") return { circleBg: activeColor, textClass: "text-success fw-semibold" };
+        if (stepName === "Cancelled") return { circleBg: cancelColor, textClass: "text-danger fw-semibold" };
+        return { circleBg: inactiveColor, textClass: "text-muted" };
+    }
+
+    const order = ["Draft", "Dispatched", "Completed"];
+    const currentIndex = order.indexOf(currentStatus);
+    const stepIndex = order.indexOf(stepName);
+
+    if (stepName === "Cancelled") {
+        return { circleBg: inactiveColor, textClass: "text-muted" };
+    }
+
+    if (stepIndex <= currentIndex && currentIndex !== -1) {
+        return { circleBg: activeColor, textClass: "text-success fw-semibold" };
+    }
+
+    return { circleBg: inactiveColor, textClass: "text-muted" };
+};
+
+const getLineWidth = (currentStatus) => {
+    if (currentStatus === "Draft") return "0%";
+    if (currentStatus === "Dispatched") return "33%";
+    if (currentStatus === "Completed") return "66%";
+    if (currentStatus === "Cancelled") return "100%";
+    return "0%";
+};
+
+const getLineColor = (currentStatus) => {
+    if (currentStatus === "Cancelled") return "#f06548"; // red
+    return "#0ab39c"; // teal
+};
+
 const TripManagement = () => {
     const { adminData } = useContext(AuthContext);
     const { currentPagePermissions } = useContext(MenuContext);
@@ -96,6 +136,9 @@ const TripManagement = () => {
     // Odometer context check
     const [currentVehicleOdometer, setCurrentVehicleOdometer] = useState(0);
     const [maxCapacityWarning, setMaxCapacityWarning] = useState("");
+    const [cargoWeightExceeded, setCargoWeightExceeded] = useState(false);
+    const [selectedVehicleCapacity, setSelectedVehicleCapacity] = useState(0);
+    const [enteredCargoWeight, setEnteredCargoWeight] = useState(0);
 
     // Datatable states
     const [totalRows, setTotalRows] = useState(0);
@@ -198,12 +241,24 @@ const TripManagement = () => {
     useEffect(() => {
         if (values.vehicle_id && values.cargo_weight) {
             const selectedVehicle = availableVehicles.find(v => v.value === values.vehicle_id);
-            if (selectedVehicle && Number(values.cargo_weight) > selectedVehicle.max_load_capacity) {
-                setMaxCapacityWarning(`Warning: Cargo weight exceeds vehicle's maximum load capacity (${selectedVehicle.max_load_capacity} kg)`);
+            if (selectedVehicle) {
+                const capacity = Number(selectedVehicle.max_load_capacity);
+                const cargo = Number(values.cargo_weight);
+                setSelectedVehicleCapacity(capacity);
+                setEnteredCargoWeight(cargo);
+                if (cargo > capacity) {
+                    setCargoWeightExceeded(true);
+                    setMaxCapacityWarning(`Warning: Cargo weight exceeds vehicle's maximum load capacity (${capacity} kg)`);
+                } else {
+                    setCargoWeightExceeded(false);
+                    setMaxCapacityWarning("");
+                }
             } else {
+                setCargoWeightExceeded(false);
                 setMaxCapacityWarning("");
             }
         } else {
+            setCargoWeightExceeded(false);
             setMaxCapacityWarning("");
         }
     }, [values.vehicle_id, values.cargo_weight, availableVehicles]);
@@ -711,11 +766,58 @@ const TripManagement = () => {
                                             </h4>
                                         </CardHeader>
                                         <CardBody>
+                                            {/* Trip Lifecycle Step Progress Bar */}
+                                            <div className="mb-4 bg-light p-3 rounded">
+                                                <Label className="form-label text-muted text-uppercase fs-11 fw-semibold mb-3">Trip Lifecycle</Label>
+                                                <div className="d-flex align-items-center justify-content-between position-relative px-4 mb-2" style={{ maxWidth: "600px" }}>
+                                                    {/* Background Line */}
+                                                    <div className="position-absolute" style={{ top: "12px", left: "40px", right: "40px", height: "3px", backgroundColor: "#e9ebec", zIndex: 1 }}>
+                                                        <div style={{
+                                                            height: "100%",
+                                                            width: "0%",
+                                                            backgroundColor: "#0ab39c",
+                                                            transition: "width 0.3s ease"
+                                                        }}></div>
+                                                    </div>
+                                                    
+                                                    {/* Step 1: Draft */}
+                                                    <div className="d-flex flex-column align-items-center" style={{ zIndex: 2 }}>
+                                                        <div className="rounded-circle d-flex align-items-center justify-content-center" style={{ width: "24px", height: "24px", backgroundColor: "#0ab39c", color: "white" }}>
+                                                            <div style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: "white" }}></div>
+                                                        </div>
+                                                        <span className="mt-1 fs-12 fw-semibold text-success">Draft</span>
+                                                    </div>
+
+                                                    {/* Step 2: Dispatched */}
+                                                    <div className="d-flex flex-column align-items-center" style={{ zIndex: 2 }}>
+                                                        <div className="rounded-circle d-flex align-items-center justify-content-center" style={{ width: "24px", height: "24px", backgroundColor: "#e9ebec", color: "#adb5bd" }}>
+                                                            <div style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: "#adb5bd" }}></div>
+                                                        </div>
+                                                        <span className="mt-1 fs-12 text-muted">Dispatched</span>
+                                                    </div>
+
+                                                    {/* Step 3: Completed */}
+                                                    <div className="d-flex flex-column align-items-center" style={{ zIndex: 2 }}>
+                                                        <div className="rounded-circle d-flex align-items-center justify-content-center" style={{ width: "24px", height: "24px", backgroundColor: "#e9ebec", color: "#adb5bd" }}>
+                                                            <div style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: "#adb5bd" }}></div>
+                                                        </div>
+                                                        <span className="mt-1 fs-12 text-muted">Completed</span>
+                                                    </div>
+
+                                                    {/* Step 4: Cancelled */}
+                                                    <div className="d-flex flex-column align-items-center" style={{ zIndex: 2 }}>
+                                                        <div className="rounded-circle d-flex align-items-center justify-content-center" style={{ width: "24px", height: "24px", backgroundColor: "#e9ebec", color: "#adb5bd" }}>
+                                                            <div style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: "#adb5bd" }}></div>
+                                                        </div>
+                                                        <span className="mt-1 fs-12 text-muted">Cancelled</span>
+                                                    </div>
+                                                </div>
+                                            </div>
                                             <form onSubmit={handleSubmit}>
                                                 <Row>
                                                     <Col md={6}>
                                                         <FormGroup className="mb-3">
-                                                            <Label for="source">Source Location <span className="text-danger">*</span></Label>
+                                                            <Label for="source">SOURCE <span className="text-danger">*</span></Label>
                                                             <Input
                                                                 type="text"
                                                                 name="source"
@@ -732,7 +834,7 @@ const TripManagement = () => {
                                                     </Col>
                                                     <Col md={6}>
                                                         <FormGroup className="mb-3">
-                                                            <Label for="destination">Destination Location <span className="text-danger">*</span></Label>
+                                                            <Label for="destination">DESTINATION <span className="text-danger">*</span></Label>
                                                             <Input
                                                                 type="text"
                                                                 name="destination"
@@ -752,7 +854,7 @@ const TripManagement = () => {
                                                 <Row>
                                                     <Col md={6}>
                                                         <FormGroup className="mb-3">
-                                                            <Label for="vehicle_id">Assign Vehicle <span className="text-danger">*</span></Label>
+                                                            <Label for="vehicle_id">VEHICLE (AVAILABLE ONLY) <span className="text-danger">*</span></Label>
                                                             <Select
                                                                 id="vehicle_id"
                                                                 options={availableVehicles}
@@ -768,7 +870,7 @@ const TripManagement = () => {
                                                     </Col>
                                                     <Col md={6}>
                                                         <FormGroup className="mb-3">
-                                                            <Label for="driver_id">Assign Driver <span className="text-danger">*</span></Label>
+                                                            <Label for="driver_id">DRIVER (AVAILABLE ONLY) <span className="text-danger">*</span></Label>
                                                             <Select
                                                                 id="driver_id"
                                                                 options={availableDrivers}
@@ -787,7 +889,7 @@ const TripManagement = () => {
                                                 <Row>
                                                     <Col md={6}>
                                                         <FormGroup className="mb-3">
-                                                            <Label for="cargo_weight">Cargo Weight (kg) <span className="text-danger">*</span></Label>
+                                                            <Label for="cargo_weight">CARGO WEIGHT (KG) <span className="text-danger">*</span></Label>
                                                             <Input
                                                                 type="number"
                                                                 name="cargo_weight"
@@ -797,12 +899,6 @@ const TripManagement = () => {
                                                                 onChange={handleChange}
                                                                 disabled={isLoading}
                                                             />
-                                                            {maxCapacityWarning && (
-                                                                <div className="text-warning mt-1" style={{ fontSize: "12px" }}>
-                                                                    <i className="ri-error-warning-fill me-1"></i>
-                                                                    {maxCapacityWarning}
-                                                                </div>
-                                                            )}
                                                             {isSubmit && formErrors.cargo_weight && (
                                                                 <span className="text-danger">{formErrors.cargo_weight}</span>
                                                             )}
@@ -810,7 +906,7 @@ const TripManagement = () => {
                                                     </Col>
                                                     <Col md={6}>
                                                         <FormGroup className="mb-3">
-                                                            <Label for="planned_distance">Planned Distance (km) <span className="text-danger">*</span></Label>
+                                                            <Label for="planned_distance">PLANNED DISTANCE (KM) <span className="text-danger">*</span></Label>
                                                             <Input
                                                                 type="number"
                                                                 name="planned_distance"
@@ -830,7 +926,7 @@ const TripManagement = () => {
                                                 <Row>
                                                     <Col md={12}>
                                                         <FormGroup className="mb-3">
-                                                            <Label for="notes">Notes / Instructions</Label>
+                                                            <Label for="notes">NOTES / INSTRUCTIONS</Label>
                                                             <Input
                                                                 type="textarea"
                                                                 name="notes"
@@ -845,7 +941,29 @@ const TripManagement = () => {
                                                     </Col>
                                                 </Row>
 
-                                                <div className="d-flex justify-content-end gap-2 mt-4">
+                                                {/* Capacity exceeded warning box from mock design */}
+                                                {cargoWeightExceeded && (
+                                                    <div className="p-3 mb-4 rounded border" style={{ borderColor: "#f87171", backgroundColor: "rgba(248, 113, 113, 0.08)", color: "#f87171" }}>
+                                                        <div className="fw-semibold mb-1" style={{ fontSize: "14px" }}>Vehicle Capacity: {selectedVehicleCapacity} kg</div>
+                                                        <div className="fw-semibold mb-2" style={{ fontSize: "14px" }}>Cargo Weight: {enteredCargoWeight} kg</div>
+                                                        <div className="fw-bold d-flex align-items-center text-danger" style={{ fontSize: "14px" }}>
+                                                            <span className="me-2">❌</span>
+                                                            Capacity exceeded by {enteredCargoWeight - selectedVehicleCapacity} kg — dispatch blocked
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                <div className="d-flex justify-content-start gap-2 mt-4">
+                                                    <Button
+                                                        color={cargoWeightExceeded ? "dark" : "success"}
+                                                        type="submit"
+                                                        disabled={isLoading || cargoWeightExceeded}
+                                                        style={{
+                                                            cursor: cargoWeightExceeded ? "not-allowed" : "pointer"
+                                                        }}
+                                                    >
+                                                        {isLoading ? "Saving..." : (cargoWeightExceeded ? "Dispatch (disabled)" : (view === "ADD" ? "Dispatch" : "Update"))}
+                                                    </Button>
                                                     <Button
                                                         color="light"
                                                         type="button"
@@ -853,13 +971,6 @@ const TripManagement = () => {
                                                         disabled={isLoading}
                                                     >
                                                         Cancel
-                                                    </Button>
-                                                    <Button
-                                                        color="success"
-                                                        type="submit"
-                                                        disabled={isLoading}
-                                                    >
-                                                        {isLoading ? "Saving..." : (view === "ADD" ? "Submit" : "Update")}
                                                     </Button>
                                                 </div>
                                             </form>
@@ -922,31 +1033,39 @@ const TripManagement = () => {
                                     <strong>Current Vehicle Odometer:</strong> {currentVehicleOdometer} km
                                 </div>
                                 <FormGroup className="mb-3">
-                                    <Label for="final_odometer">Final Odometer Reading (km) <span className="text-danger">*</span></Label>
-                                    <Input
-                                        type="number"
-                                        id="final_odometer"
-                                        placeholder={`Must be greater than ${currentVehicleOdometer}`}
-                                        value={finalOdometer}
-                                        onChange={(e) => setFinalOdometer(e.target.value)}
-                                        required
-                                        disabled={isLoading}
-                                        min={currentVehicleOdometer + 1}
-                                    />
-                                </FormGroup>
-                                <FormGroup className="mb-0">
-                                    <Label for="fuel_consumed">Fuel Consumed (Liters)</Label>
-                                    <Input
-                                        type="number"
-                                        id="fuel_consumed"
-                                        placeholder="e.g. 45"
-                                        value={fuelConsumed}
-                                        onChange={(e) => setFuelConsumed(e.target.value)}
-                                        disabled={isLoading}
-                                        min="0.1"
-                                        step="0.1"
-                                    />
-                                </FormGroup>
+                                     <Label for="final_odometer">Final Odometer Reading (km) <span className="text-danger">*</span></Label>
+                                     <input
+                                         type="number"
+                                         className="form-control"
+                                         id="final_odometer"
+                                         placeholder={`Must be greater than ${currentVehicleOdometer}`}
+                                         value={finalOdometer}
+                                         onChange={(e) => setFinalOdometer(e.target.value)}
+                                         required
+                                         disabled={isLoading}
+                                         min={currentVehicleOdometer + 1}
+                                     />
+                                     {finalOdometer && Number(finalOdometer) <= currentVehicleOdometer && (
+                                         <div className="text-danger mt-1 fw-medium" style={{ fontSize: "12px" }}>
+                                             <i className="ri-error-warning-fill me-1"></i>
+                                             Value must be greater than or equal to {currentVehicleOdometer + 1}.
+                                         </div>
+                                     )}
+                                 </FormGroup>
+                                 <FormGroup className="mb-0">
+                                     <Label for="fuel_consumed">Fuel Consumed (Liters)</Label>
+                                     <input
+                                         type="number"
+                                         className="form-control"
+                                         id="fuel_consumed"
+                                         placeholder="e.g. 45"
+                                         value={fuelConsumed}
+                                         onChange={(e) => setFuelConsumed(e.target.value)}
+                                         disabled={isLoading}
+                                         min="0.1"
+                                         step="0.1"
+                                     />
+                                 </FormGroup>
                             </div>
                         )}
                     </ModalBody>
@@ -999,112 +1118,186 @@ const TripManagement = () => {
 
             {/* View Details Modal */}
             <Modal isOpen={modalView} toggle={() => setModalView(false)} size="lg" centered>
-                <ModalHeader toggle={() => setModalView(false)}>Trip Details</ModalHeader>
-                <ModalBody>
+                <ModalHeader toggle={() => setModalView(false)} className="bg-light py-2 px-3">
+                    <span className="fs-15 fw-bold">Trip Details — {selectedTripDetails?.trip_number}</span>
+                </ModalHeader>
+                <ModalBody className="p-3">
                     {selectedTripDetails && (
-                        <div className="table-responsive">
-                            <table className="table table-bordered mb-0">
-                                id="trip-details-table"
-                                <tbody>
-                                    <tr>
-                                        <th style={{ width: "35%" }}>Trip Number</th>
-                                        <td>{selectedTripDetails.trip_number}</td>
-                                    </tr>
-                                    <tr>
-                                        <th>Route</th>
-                                        <td>{selectedTripDetails.source} ➔ {selectedTripDetails.destination}</td>
-                                    </tr>
-                                    <tr>
-                                        <th>Status</th>
-                                        <td>
-                                            <span className={`badge ${
-                                                selectedTripDetails.status === "Draft" ? "bg-secondary-subtle text-secondary" :
-                                                selectedTripDetails.status === "Dispatched" ? "bg-primary-subtle text-primary" :
-                                                selectedTripDetails.status === "Completed" ? "bg-success-subtle text-success" :
-                                                "bg-danger-subtle text-danger"
-                                            }`}>
-                                                {selectedTripDetails.status}
-                                            </span>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <th>Vehicle Assigned</th>
-                                        <td>
-                                            {selectedTripDetails.vehicle_id ? (
-                                                <>
-                                                    <strong>Reg Number:</strong> {selectedTripDetails.vehicle_id.registration_number} <br />
-                                                    <strong>Model:</strong> {selectedTripDetails.vehicle_id.name_model} <br />
-                                                    <strong>Type:</strong> {selectedTripDetails.vehicle_id.type}
-                                                </>
-                                            ) : "N/A"}
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <th>Driver Assigned</th>
-                                        <td>
-                                            {selectedTripDetails.driver_id ? (
-                                                <>
-                                                    <strong>Name:</strong> {selectedTripDetails.driver_id.name} <br />
-                                                    <strong>License:</strong> {selectedTripDetails.driver_id.licenseNumber} ({selectedTripDetails.driver_id.licenseCategory})
-                                                </>
-                                            ) : "N/A"}
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <th>Cargo Weight</th>
-                                        <td>{selectedTripDetails.cargo_weight} kg</td>
-                                    </tr>
-                                    <tr>
-                                        <th>Planned Distance</th>
-                                        <td>{selectedTripDetails.planned_distance} km</td>
-                                    </tr>
-                                    {selectedTripDetails.dispatched_at && (
-                                        <tr>
-                                            <th>Dispatched At</th>
-                                            <td>{new Date(selectedTripDetails.dispatched_at).toLocaleString()}</td>
-                                        </tr>
-                                    )}
-                                    {selectedTripDetails.completed_at && (
-                                        <>
-                                            <tr>
-                                                <th>Completed At</th>
-                                                <td>{new Date(selectedTripDetails.completed_at).toLocaleString()}</td>
-                                            </tr>
-                                            <tr>
-                                                <th>Final Odometer</th>
-                                                <td>{selectedTripDetails.final_odometer} km</td>
-                                            </tr>
-                                            <tr>
-                                                <th>Fuel Consumed</th>
-                                                <td>{selectedTripDetails.fuel_consumed ? `${selectedTripDetails.fuel_consumed} Liters` : "Not recorded"}</td>
-                                            </tr>
-                                        </>
-                                    )}
-                                    {selectedTripDetails.cancelled_at && (
-                                        <>
-                                            <tr>
-                                                <th>Cancelled At</th>
-                                                <td>{new Date(selectedTripDetails.cancelled_at).toLocaleString()}</td>
-                                            </tr>
-                                            <tr>
-                                                <th>Cancellation Reason</th>
-                                                <td>{selectedTripDetails.cancellation_reason || "No reason given"}</td>
-                                            </tr>
-                                        </>
-                                    )}
-                                    {selectedTripDetails.notes && (
-                                        <tr>
-                                            <th>Notes</th>
-                                            <td>{selectedTripDetails.notes}</td>
-                                        </tr>
-                                    )}
-                                </tbody>
-                            </table>
+                        <div>
+                            {/* Trip Lifecycle Step Progress Bar */}
+                            <div className="mb-3 bg-light p-2 rounded">
+                                <Label className="form-label text-muted text-uppercase fs-10 fw-semibold mb-2">Trip Lifecycle</Label>
+                                <div className="d-flex align-items-center justify-content-between position-relative px-3 mb-1" style={{ maxWidth: "600px" }}>
+                                    {/* Background Line */}
+                                    <div className="position-absolute" style={{ top: "12px", left: "30px", right: "30px", height: "3px", backgroundColor: "#e9ebec", zIndex: 1 }}>
+                                        <div style={{
+                                            height: "100%",
+                                            width: getLineWidth(selectedTripDetails.status),
+                                            backgroundColor: getLineColor(selectedTripDetails.status),
+                                            transition: "width 0.3s ease"
+                                        }}></div>
+                                    </div>
+                                    
+                                    {/* Step 1: Draft */}
+                                    {(() => {
+                                        const style = getStepStyle("Draft", selectedTripDetails.status);
+                                        return (
+                                            <div className="d-flex flex-column align-items-center" style={{ zIndex: 2 }}>
+                                                <div className="rounded-circle d-flex align-items-center justify-content-center" style={{ width: "22px", height: "22px", backgroundColor: style.circleBg, color: "white" }}>
+                                                    <div style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "white" }}></div>
+                                                </div>
+                                                <span className={`mt-1 fs-11 ${style.textClass}`}>Draft</span>
+                                            </div>
+                                        );
+                                    })()}
+
+                                    {/* Step 2: Dispatched */}
+                                    {(() => {
+                                        const style = getStepStyle("Dispatched", selectedTripDetails.status);
+                                        const isActive = style.circleBg !== "#e9ebec";
+                                        return (
+                                            <div className="d-flex flex-column align-items-center" style={{ zIndex: 2 }}>
+                                                <div className="rounded-circle d-flex align-items-center justify-content-center" style={{ width: "22px", height: "22px", backgroundColor: style.circleBg, color: "white" }}>
+                                                    <div style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: isActive ? "white" : "#adb5bd" }}></div>
+                                                </div>
+                                                <span className={`mt-1 fs-11 ${style.textClass}`}>Dispatched</span>
+                                            </div>
+                                        );
+                                    })()}
+
+                                    {/* Step 3: Completed */}
+                                    {(() => {
+                                        const style = getStepStyle("Completed", selectedTripDetails.status);
+                                        const isActive = style.circleBg !== "#e9ebec";
+                                        return (
+                                            <div className="d-flex flex-column align-items-center" style={{ zIndex: 2 }}>
+                                                <div className="rounded-circle d-flex align-items-center justify-content-center" style={{ width: "22px", height: "22px", backgroundColor: style.circleBg, color: "white" }}>
+                                                    <div style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: isActive ? "white" : "#adb5bd" }}></div>
+                                                </div>
+                                                <span className={`mt-1 fs-11 ${style.textClass}`}>Completed</span>
+                                            </div>
+                                        );
+                                    })()}
+
+                                    {/* Step 4: Cancelled */}
+                                    {(() => {
+                                        const style = getStepStyle("Cancelled", selectedTripDetails.status);
+                                        const isActive = style.circleBg !== "#e9ebec";
+                                        return (
+                                            <div className="d-flex flex-column align-items-center" style={{ zIndex: 2 }}>
+                                                <div className="rounded-circle d-flex align-items-center justify-content-center" style={{ width: "22px", height: "22px", backgroundColor: style.circleBg, color: "white" }}>
+                                                    <div style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: isActive ? "white" : "#adb5bd" }}></div>
+                                                </div>
+                                                <span className={`mt-1 fs-11 ${style.textClass}`}>Cancelled</span>
+                                            </div>
+                                        );
+                                    })()}
+                                </div>
+                            </div>
+
+                            {/* Cards Section */}
+                            <Row>
+                                <Col md={6} className="mb-2">
+                                    <div className="card border-0 bg-light-subtle h-100 p-2 rounded border mb-0">
+                                        <h5 className="fs-12 text-primary text-uppercase mb-2">
+                                            <i className="ri-road-map-line align-middle me-1"></i> Route & Cargo Details
+                                        </h5>
+                                        <ul className="list-unstyled mb-0" style={{ fontSize: "13px" }}>
+                                            <li className="mb-1"><strong>Source:</strong> {selectedTripDetails.source}</li>
+                                            <li className="mb-1"><strong>Destination:</strong> {selectedTripDetails.destination}</li>
+                                            <li className="mb-1"><strong>Planned Distance:</strong> {selectedTripDetails.planned_distance} km</li>
+                                            <li className="mb-0"><strong>Cargo Weight:</strong> {selectedTripDetails.cargo_weight} kg</li>
+                                        </ul>
+                                    </div>
+                                </Col>
+                                <Col md={6} className="mb-2">
+                                    <div className="card border-0 bg-light-subtle h-100 p-2 rounded border mb-0">
+                                        <h5 className="fs-12 text-primary text-uppercase mb-2">
+                                            <i className="ri-user-shared-line align-middle me-1"></i> Asset Assignment
+                                        </h5>
+                                        <ul className="list-unstyled mb-0" style={{ fontSize: "13px" }}>
+                                            <li className="mb-1">
+                                                <strong>Vehicle:</strong> {selectedTripDetails.vehicle_id ? (
+                                                    <span>{selectedTripDetails.vehicle_id.registration_number} ({selectedTripDetails.vehicle_id.name_model})</span>
+                                                ) : "N/A"}
+                                            </li>
+                                            <li className="mb-1">
+                                                <strong>Driver:</strong> {selectedTripDetails.driver_id ? (
+                                                    <span>{selectedTripDetails.driver_id.name} ({selectedTripDetails.driver_id.licenseCategory})</span>
+                                                ) : "N/A"}
+                                            </li>
+                                            <li className="mb-0">
+                                                <strong>Current Odometer:</strong> {selectedTripDetails.vehicle_id?.odometer || 0} km
+                                            </li>
+                                        </ul>
+                                    </div>
+                                </Col>
+                            </Row>
+
+                            {/* Completion & Notes Section side-by-side to minimize height */}
+                            {(() => {
+                                const hasTimeline = !!(selectedTripDetails.dispatched_at || selectedTripDetails.completed_at || selectedTripDetails.cancelled_at);
+                                const hasNotes = !!selectedTripDetails.notes;
+                                
+                                return (hasTimeline || hasNotes) && (
+                                    <Row className="mt-2">
+                                        {hasTimeline && (
+                                            <Col md={hasNotes ? 6 : 12} className="mb-2">
+                                                <div className="card border-0 bg-light-subtle p-2 rounded border h-100 mb-0">
+                                                    <h5 className="fs-12 text-primary text-uppercase mb-2">
+                                                        <i className="ri-history-line align-middle me-1"></i> Trip Timeline & Metrics
+                                                    </h5>
+                                                    <Row style={{ fontSize: "13px" }}>
+                                                        {selectedTripDetails.dispatched_at && (
+                                                            <Col md={12} className="mb-1">
+                                                                <strong>Dispatched:</strong> <span className="text-muted">{new Date(selectedTripDetails.dispatched_at).toLocaleString()}</span>
+                                                            </Col>
+                                                        )}
+                                                        {selectedTripDetails.completed_at && (
+                                                            <>
+                                                                <Col md={12} className="mb-1">
+                                                                    <strong>Completed:</strong> <span className="text-muted">{new Date(selectedTripDetails.completed_at).toLocaleString()}</span>
+                                                                </Col>
+                                                                <Col md={12} className="mb-1">
+                                                                    <strong>Final Odo:</strong> <span className="text-muted">{selectedTripDetails.final_odometer} km</span>
+                                                                </Col>
+                                                                <Col md={12} className="mb-0">
+                                                                    <strong>Fuel Consumed:</strong> <span className="text-muted">{selectedTripDetails.fuel_consumed ? `${selectedTripDetails.fuel_consumed} Liters` : "N/A"}</span>
+                                                                </Col>
+                                                            </>
+                                                        )}
+                                                        {selectedTripDetails.cancelled_at && (
+                                                            <>
+                                                                <Col md={12} className="mb-1">
+                                                                    <strong>Cancelled:</strong> <span className="text-muted">{new Date(selectedTripDetails.cancelled_at).toLocaleString()}</span>
+                                                                </Col>
+                                                                <Col md={12} className="mb-0">
+                                                                    <strong>Reason:</strong> <span className="text-danger">{selectedTripDetails.cancellation_reason || "None"}</span>
+                                                                </Col>
+                                                            </>
+                                                        )}
+                                                    </Row>
+                                                </div>
+                                            </Col>
+                                        )}
+                                        {hasNotes && (
+                                            <Col md={hasTimeline ? 6 : 12} className="mb-2">
+                                                <div className="card border-0 bg-light p-2 rounded h-100 mb-0" style={{ fontSize: "13px" }}>
+                                                    <strong>Notes & Special Instructions:</strong>
+                                                    <p className="mb-0 text-muted mt-1" style={{ fontSize: "12px", lineHeight: "1.4" }}>
+                                                        {selectedTripDetails.notes}
+                                                    </p>
+                                                </div>
+                                            </Col>
+                                        )}
+                                    </Row>
+                                );
+                            })()}
                         </div>
                     )}
                 </ModalBody>
-                <ModalFooter>
-                    <Button color="secondary" onClick={() => setModalView(false)}>Close</Button>
+                <ModalFooter className="bg-light py-2 px-3">
+                    <Button color="secondary" size="sm" onClick={() => setModalView(false)}>Close</Button>
                 </ModalFooter>
             </Modal>
         </React.Fragment>
