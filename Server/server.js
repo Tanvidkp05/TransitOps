@@ -221,6 +221,7 @@ import vehiclesRoutes from "./routes/v1/vehicles.routes.js";
 import vehicleTypesRoutes from "./routes/v1/vehicleTypes.routes.js";
 import maintenanceLogsRoutes from "./routes/v1/maintenanceLogs.routes.js";
 import tripsRoutes from "./routes/v1/trips.routes.js";
+import expensesRoutes from "./routes/v1/expenses.routes.js";
 
 app.use("/api/v1", companiesRoutes);
 app.use("/api/v1", currenciesRoutes);
@@ -236,6 +237,7 @@ app.use("/api/v1", vehiclesRoutes);
 app.use("/api/v1", vehicleTypesRoutes);
 app.use("/api/v1", maintenanceLogsRoutes);
 app.use("/api/v1", tripsRoutes);
+app.use("/api/v1", expensesRoutes);
 app.use("/api/v1/otp", otpRoutes);
 
 console.log("✅ V1 API routes loaded");
