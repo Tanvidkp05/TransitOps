@@ -24,8 +24,8 @@ const MaintenanceLogSchema = new Schema(
     },
     status: {
       type: String,
-      enum: ["Active", "Closed"],
-      default: "Active",
+      enum: ["In Shop", "Completed"],
+      default: "In Shop",
       required: true,
     },
     opened_at: {

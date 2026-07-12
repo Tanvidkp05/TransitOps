@@ -33,15 +33,15 @@ const initialState = {
     issue_type: "",
     description: "",
     cost: "",
-    status: "Active",
+    status: "In Shop",
     opened_at: new Date().toISOString().split("T")[0],
     closed_at: "",
     isActive: true,
 };
 
 const statusOptions = [
-    { value: "Active", label: "Active" },
-    { value: "Closed", label: "Closed" },
+    { value: "In Shop", label: "In Shop" },
+    { value: "Completed", label: "Completed" },
 ];
 
 const MaintenanceLog = () => {
@@ -275,8 +275,8 @@ const MaintenanceLog = () => {
         if (!fields.opened_at) {
             errors.opened_at = "Opening date is required";
         }
-        if (fields.status === "Closed" && !fields.closed_at) {
-            errors.closed_at = "Closing date is required when status is Closed";
+        if (fields.status === "Completed" && !fields.closed_at) {
+            errors.closed_at = "Completion date is required when status is Completed";
         }
         return errors;
     };
@@ -298,7 +298,7 @@ const MaintenanceLog = () => {
             formData.append("status", values.status);
             formData.append("opened_at", values.opened_at);
             
-            if (values.status === "Closed" && values.closed_at) {
+            if (values.status === "Completed" && values.closed_at) {
                 formData.append("closed_at", values.closed_at);
             }
             
@@ -455,8 +455,8 @@ const MaintenanceLog = () => {
             name: "Status",
             selector: (row) => {
                 let badgeClass = "badge bg-info-subtle text-info";
-                if (row.status === "Active") badgeClass = "badge bg-warning-subtle text-warning";
-                else if (row.status === "Closed") badgeClass = "badge bg-success-subtle text-success";
+                if (row.status === "In Shop") badgeClass = "badge bg-warning-subtle text-warning";
+                else if (row.status === "Completed") badgeClass = "badge bg-success-subtle text-success";
 
                 return <span className={badgeClass}>{row.status}</span>;
             },
@@ -632,7 +632,16 @@ const MaintenanceLog = () => {
                                                                 id="maintenance-status"
                                                                 options={statusOptions}
                                                                 value={statusOptions.find(opt => opt.value === values.status) || null}
-                                                                onChange={(selected) => setValues({ ...values, status: selected ? selected.value : "Active" })}
+                                                                onChange={(selected) => {
+                                                                    const newStatus = selected ? selected.value : "In Shop";
+                                                                    const nextValues = { ...values, status: newStatus };
+                                                                    if (newStatus === "Completed") {
+                                                                        nextValues.closed_at = new Date().toISOString().split("T")[0];
+                                                                    } else {
+                                                                        nextValues.closed_at = "";
+                                                                    }
+                                                                    setValues(nextValues);
+                                                                }}
                                                                 placeholder="Select Status..."
                                                                 isDisabled={isLoading}
                                                             />
@@ -657,10 +666,10 @@ const MaintenanceLog = () => {
                                                             )}
                                                         </FormGroup>
                                                     </Col>
-                                                    {values.status === "Closed" && (
+                                                    {values.status === "Completed" && (
                                                         <Col md={6}>
                                                             <FormGroup className="mb-3">
-                                                                <Label for="closed_at">Closed At <span className="text-danger">*</span></Label>
+                                                                <Label for="closed_at">Completion Date <span className="text-danger">*</span></Label>
                                                                 <Input
                                                                     type="date"
                                                                     name="closed_at"

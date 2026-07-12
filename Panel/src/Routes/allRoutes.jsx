@@ -19,6 +19,7 @@ import CurrencyMaster from "../pages/Master/CurrencyMaster";
 import LoginAttemptLogs from "../pages/Master/LoginAttemptLogs";
 import DriverMaster from "../pages/Master/DriverMaster";
 import Vehicle from "../pages/Master/Vehicle";
+import VehicleType from "../pages/Master/VehicleType";
 import MaintenanceLog from "../pages/Master/MaintenanceLog";
 
 const authProtectedRoutes = [
@@ -41,6 +42,7 @@ const authProtectedRoutes = [
     { path: "/driver-master", component: <DriverMaster /> },
     { path: "/login-attempt-logs", component: <LoginAttemptLogs /> },
     { path: "/vehicle", component: <Vehicle /> },
+    { path: "/vehicle-type", component: <VehicleType /> },
     { path: "/maintenance-log", component: <MaintenanceLog /> },
     {
         path: "/",

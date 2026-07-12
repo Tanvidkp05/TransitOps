@@ -152,9 +152,31 @@ mongoose
     useUnifiedTopology: true,
     serverSelectionTimeoutMS: 10000,
   })
-  .then(() => {
+  .then(async () => {
     console.log("✅ DB connected");
     databasestatus = "Connected";
+
+    try {
+      const VehicleType = (await import("./models/VehicleType.js")).default;
+      const count = await VehicleType.countDocuments();
+      if (count === 0) {
+        const defaultTypes = [
+          "Cargo Van",
+          "Box Truck",
+          "Flatbed Truck",
+          "Semi-Trailer",
+          "Refrigerated Truck",
+          "SUV",
+          "Sedan",
+          "Pickup Truck",
+          "Other"
+        ];
+        await VehicleType.insertMany(defaultTypes.map(name => ({ name, isActive: true })));
+        console.log("✅ Seeded default vehicle types successfully");
+      }
+    } catch (err) {
+      console.error("❌ Error seeding vehicle types:", err);
+    }
   })
   .catch((err) => {
     console.error("❌ DB Connection Error =>", err);
@@ -196,6 +218,7 @@ import menusRoutes from "./routes/v1/menus.routes.js";
 import rolesRoutes from "./routes/v1/roles.routes.js";
 import otpRoutes from "./routes/v1/otp.routes.js";
 import vehiclesRoutes from "./routes/v1/vehicles.routes.js";
+import vehicleTypesRoutes from "./routes/v1/vehicleTypes.routes.js";
 import maintenanceLogsRoutes from "./routes/v1/maintenanceLogs.routes.js";
 
 app.use("/api/v1", companiesRoutes);
@@ -209,6 +232,7 @@ app.use("/api/v1", locationsRoutes);
 app.use("/api/v1", menusRoutes);
 app.use("/api/v1", rolesRoutes);
 app.use("/api/v1", vehiclesRoutes);
+app.use("/api/v1", vehicleTypesRoutes);
 app.use("/api/v1", maintenanceLogsRoutes);
 app.use("/api/v1/otp", otpRoutes);
 

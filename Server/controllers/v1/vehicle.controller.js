@@ -230,11 +230,17 @@ export const deleteVehicle = async (req, res) => {
 
 export const listVehiclesByParams = async (req, res) => {
   try {
-    let { skip, per_page, sorton, sortdir, match, isActive } = req.body;
+    let { skip, per_page, sorton, sortdir, match, isActive, type, status } = req.body;
 
     let matchCondition = {};
     if (isActive !== undefined && isActive !== null && isActive !== "") {
       matchCondition.isActive = isActive === "true" || isActive === true;
+    }
+    if (type && (!Array.isArray(type) || type.length > 0)) {
+      matchCondition.type = { $in: Array.isArray(type) ? type : [type] };
+    }
+    if (status && (!Array.isArray(status) || status.length > 0)) {
+      matchCondition.status = { $in: Array.isArray(status) ? status : [status] };
     }
 
     let query = [

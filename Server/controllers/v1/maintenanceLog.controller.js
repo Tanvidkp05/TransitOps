@@ -51,15 +51,15 @@ export const createMaintenanceLog = async (req, res) => {
       issue_type,
       description,
       cost: cost !== undefined ? Number(cost) : 0,
-      status: status || "Active",
+      status: status || "In Shop",
       opened_at: opened_at || new Date(),
-      closed_at: status === "Closed" ? (closed_at || new Date()) : undefined,
+      closed_at: status === "Completed" ? (closed_at || new Date()) : undefined,
       image: imagePath,
       isActive: isActive !== undefined ? (isActive === "true" || isActive === true) : true,
     });
 
     // If maintenance log is active, automatically change vehicle status to "In Shop"
-    if (status === "Active") {
+    if (maintenanceLog.status === "In Shop") {
       vehicle.status = "In Shop";
       await vehicle.save();
     }
@@ -183,28 +183,28 @@ export const updateMaintenanceLog = async (req, res) => {
     // Check status/vehicle transitions
     if (previousVehicleId !== newVehicleId) {
       // Vehicle has changed. 
-      // 1. If previous log was Active, restore previous vehicle to Available (unless retired)
-      if (previousStatus === "Active") {
+      // 1. If previous log was In Shop, restore previous vehicle to Available (unless retired)
+      if (previousStatus === "In Shop") {
         const prevVehicle = await Vehicle.findById(previousVehicleId);
         if (prevVehicle && prevVehicle.status !== "Retired") {
           prevVehicle.status = "Available";
           await prevVehicle.save();
         }
       }
-      // 2. If new log status is Active, set new vehicle to In Shop
-      if (newStatus === "Active") {
+      // 2. If new log status is In Shop, set new vehicle to In Shop
+      if (newStatus === "In Shop") {
         vehicle.status = "In Shop";
         await vehicle.save();
       }
     } else {
       // Vehicle is the same, check status change
-      if (previousStatus === "Active" && newStatus === "Closed") {
+      if (previousStatus === "In Shop" && newStatus === "Completed") {
         // Closing maintenance restores the vehicle to Available (unless retired)
         if (vehicle.status !== "Retired") {
           vehicle.status = "Available";
           await vehicle.save();
         }
-      } else if (previousStatus === "Closed" && newStatus === "Active") {
+      } else if (previousStatus === "Completed" && newStatus === "In Shop") {
         // Reopening maintenance switches vehicle status to In Shop
         vehicle.status = "In Shop";
         await vehicle.save();
@@ -219,7 +219,7 @@ export const updateMaintenanceLog = async (req, res) => {
     log.status = newStatus;
     log.opened_at = opened_at || log.opened_at;
     
-    if (newStatus === "Closed") {
+    if (newStatus === "Completed") {
       log.closed_at = closed_at || log.closed_at || new Date();
     } else {
       log.closed_at = undefined; // unset closed_at if reopened
