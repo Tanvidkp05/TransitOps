@@ -160,6 +160,15 @@ export const ENDPOINTS = {
         CANCEL: (id) => `${V1}/trips/${id}/cancel`,
     },
 
+    // Expenses endpoints
+    EXPENSES: {
+        BASE: `${V1}/expenses`,
+        BY_ID: (id) => `${V1}/expenses/${id}`,
+        SEARCH: `${V1}/expenses/search`,
+        VEHICLE_COSTS: `${V1}/expenses/vehicle-costs`,
+        LATEST_FUEL: (vehicleId) => `${V1}/expenses/latest-fuel/${vehicleId}`,
+    },
+
     // Admin endpoints
     ADMIN: {
         LOGIN_ATTEMPTS: `${V1}/admin/auth/login-attempts`,

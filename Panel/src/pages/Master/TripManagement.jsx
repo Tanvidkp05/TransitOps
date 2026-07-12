@@ -35,6 +35,7 @@ import {
 } from "../../api/trips.api";
 import { searchVehicles } from "../../api/vehicles.api";
 import { searchDrivers } from "../../api/drivers.api";
+import { getLatestFuelByVehicle } from "../../api/expenses.api";
 
 const initialState = {
     source: "",
@@ -433,20 +434,48 @@ const TripManagement = () => {
     // Complete Modal Flow
     const handleCompleteClick = (id) => {
         setActionId(id);
+        setIsLoading(true);
         getTripById(id)
-            .then((res) => {
+            .then(async (res) => {
                 if (res.data?.data) {
                     const data = res.data.data;
                     setSelectedTripDetails(data);
-                    setCurrentVehicleOdometer(data.vehicle_id?.odometer || 0);
-                    setFinalOdometer("");
-                    setFuelConsumed("");
+                    const vehicleOdometer = data.vehicle_id?.odometer || 0;
+                    setCurrentVehicleOdometer(vehicleOdometer);
+                    
+                    let prefilledOdometer = "";
+                    let prefilledFuel = "";
+
+                    // Attempt to fetch latest fuel log details for vehicle to prefill completion
+                    const targetVehicleId = data.vehicle_id?._id || data.vehicle_id;
+                    if (targetVehicleId) {
+                        try {
+                            const fuelRes = await getLatestFuelByVehicle(targetVehicleId);
+                            if (fuelRes.data?.isOk && fuelRes.data.data) {
+                                const latestLog = fuelRes.data.data;
+                                if (latestLog.odometer_reading) {
+                                    prefilledOdometer = latestLog.odometer_reading;
+                                }
+                                if (latestLog.fuel_liters) {
+                                    prefilledFuel = latestLog.fuel_liters;
+                                }
+                            }
+                        } catch (err) {
+                            console.warn("Failed to fetch prefill fuel logs:", err);
+                        }
+                    }
+
+                    setFinalOdometer(prefilledOdometer);
+                    setFuelConsumed(prefilledFuel);
                     setModalComplete(true);
                 }
             })
             .catch((err) => {
                 console.error("Error fetching trip details for completion:", err);
                 toast.error("Failed to load trip details");
+            })
+            .finally(() => {
+                setIsLoading(false);
             });
     };
 

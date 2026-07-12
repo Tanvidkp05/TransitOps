@@ -22,6 +22,7 @@ import Vehicle from "../pages/Master/Vehicle";
 import VehicleType from "../pages/Master/VehicleType";
 import MaintenanceLog from "../pages/Master/MaintenanceLog";
 import TripManagement from "../pages/Master/TripManagement";
+import ExpenseManagement from "../pages/Master/ExpenseManagement";
 
 const authProtectedRoutes = [
     { path: "/profile", component: <UserProfile /> },
@@ -46,6 +47,7 @@ const authProtectedRoutes = [
     { path: "/vehicle-type", component: <VehicleType /> },
     { path: "/maintenance-log", component: <MaintenanceLog /> },
     { path: "/trip-management", component: <TripManagement /> },
+    { path: "/expense-management", component: <ExpenseManagement /> },
     {
         path: "/",
         exact: true,
