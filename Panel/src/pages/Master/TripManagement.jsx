@@ -1,0 +1,1114 @@
+import React, { useState, useEffect, useContext } from "react";
+import {
+    Button,
+    Card,
+    CardBody,
+    CardHeader,
+    Col,
+    Container,
+    Label,
+    Input,
+    Row,
+    FormGroup,
+    Modal,
+    ModalHeader,
+    ModalBody,
+    ModalFooter,
+} from "reactstrap";
+import DataTable from "react-data-table-component";
+import BreadCrumb from "../../Components/Common/BreadCrumb";
+import DeleteModal from "../../Components/Common/DeleteModal";
+import FormsHeader from "../../Components/Common/FormsModalHeader";
+import { toast } from "react-toastify";
+import Select from "react-select";
+import { AuthContext } from "../../context/AuthContext";
+import { MenuContext } from "../../context/MenuContext";
+import {
+    createTrip,
+    deleteTrip,
+    getTripById,
+    updateTrip,
+    searchTrips,
+    dispatchTrip,
+    completeTrip,
+    cancelTrip,
+} from "../../api/trips.api";
+import { searchVehicles } from "../../api/vehicles.api";
+import { searchDrivers } from "../../api/drivers.api";
+
+const initialState = {
+    source: "",
+    destination: "",
+    vehicle_id: "",
+    driver_id: "",
+    cargo_weight: "",
+    planned_distance: "",
+    notes: "",
+};
+
+const statusOptions = [
+    { value: "Draft", label: "Draft" },
+    { value: "Dispatched", label: "Dispatched" },
+    { value: "Completed", label: "Completed" },
+    { value: "Cancelled", label: "Cancelled" },
+];
+
+const TripManagement = () => {
+    const { adminData } = useContext(AuthContext);
+    const { currentPagePermissions } = useContext(MenuContext);
+
+    const [view, setView] = useState("LIST"); // "LIST", "ADD", "EDIT"
+    const [values, setValues] = useState(initialState);
+    const [formErrors, setFormErrors] = useState({});
+    const [isSubmit, setIsSubmit] = useState(false);
+    const [filter, setFilter] = useState(true);
+
+    const [isLoading, setIsLoading] = useState(false);
+    const [isDeleteLoading, setIsDeleteLoading] = useState(false);
+    const [isPageLoading, setIsPageLoading] = useState(false);
+
+    // Lists for dropdown selection
+    const [availableVehicles, setAvailableVehicles] = useState([]);
+    const [availableDrivers, setAvailableDrivers] = useState([]);
+
+    // Data lists
+    const [trips, setTrips] = useState([]);
+    const [query, setQuery] = useState("");
+    const [selectedStatus, setSelectedStatus] = useState("");
+    
+    // Modal states
+    const [editId, setEditId] = useState("");
+    const [removeId, setRemoveId] = useState("");
+    const [actionId, setActionId] = useState("");
+    const [selectedTripDetails, setSelectedTripDetails] = useState(null);
+
+    const [modalDelete, setModalDelete] = useState(false);
+    const [modalDispatch, setModalDispatch] = useState(false);
+    const [modalComplete, setModalComplete] = useState(false);
+    const [modalCancel, setModalCancel] = useState(false);
+    const [modalView, setModalView] = useState(false);
+
+    // Complete / Cancel fields
+    const [finalOdometer, setFinalOdometer] = useState("");
+    const [fuelConsumed, setFuelConsumed] = useState("");
+    const [cancellationReason, setCancellationReason] = useState("");
+
+    // Odometer context check
+    const [currentVehicleOdometer, setCurrentVehicleOdometer] = useState(0);
+    const [maxCapacityWarning, setMaxCapacityWarning] = useState("");
+
+    // Datatable states
+    const [totalRows, setTotalRows] = useState(0);
+    const [perPage, setPerPage] = useState(100);
+    const [pageNo, setPageNo] = useState(1);
+    const [sortColumn, setSortColumn] = useState("createdAt");
+    const [sortDirection, setSortDirection] = useState("desc");
+
+    // Fetch lists
+    const fetchAvailableAssets = async (currentVehicle = null, currentDriver = null) => {
+        try {
+            // Fetch Available Vehicles
+            const vehicleRes = await searchVehicles({ status: "Available", per_page: 500, isActive: true });
+            let vList = [];
+            if (vehicleRes.data?.data?.length > 0) {
+                vList = vehicleRes.data.data[0].data.map(v => ({
+                    value: v._id,
+                    label: `${v.registration_number} - ${v.name_model} (Capacity: ${v.max_load_capacity} kg)`,
+                    max_load_capacity: v.max_load_capacity,
+                    odometer: v.odometer,
+                }));
+            }
+            // Append current vehicle if editing
+            if (currentVehicle && !vList.some(v => v.value === currentVehicle._id)) {
+                vList.push({
+                    value: currentVehicle._id,
+                    label: `${currentVehicle.registration_number} - ${currentVehicle.name_model} [Currently Assigned]`,
+                    max_load_capacity: currentVehicle.max_load_capacity,
+                    odometer: currentVehicle.odometer,
+                });
+            }
+            setAvailableVehicles(vList);
+
+            // Fetch Available Drivers
+            const driverRes = await searchDrivers({ status: "Available", per_page: 500, isActive: true });
+            let dList = [];
+            if (driverRes.data?.data?.length > 0) {
+                dList = driverRes.data.data[0].data.map(d => ({
+                    value: d._id,
+                    label: `${d.name} (${d.licenseCategory})`,
+                    licenseCategory: d.licenseCategory,
+                }));
+            }
+            // Append current driver if editing
+            if (currentDriver && !dList.some(d => d.value === currentDriver._id)) {
+                dList.push({
+                    value: currentDriver._id,
+                    label: `${currentDriver.name} (${currentDriver.licenseCategory}) [Currently Assigned]`,
+                    licenseCategory: currentDriver.licenseCategory,
+                });
+            }
+            setAvailableDrivers(dList);
+        } catch (error) {
+            console.error("Error fetching available vehicles or drivers:", error);
+            toast.error("Failed to load available vehicles or drivers");
+        }
+    };
+
+    const fetchTripsList = async () => {
+        setIsPageLoading(true);
+        let skip = (pageNo - 1) * perPage;
+        if (skip < 0) skip = 0;
+
+        try {
+            const response = await searchTrips({
+                skip: skip,
+                per_page: perPage,
+                sorton: sortColumn,
+                sortdir: sortDirection,
+                match: query,
+                status: selectedStatus || undefined,
+                isActive: filter,
+            });
+
+            if (response.data?.data?.length > 0) {
+                const res = response.data.data[0];
+                setTrips(res.data || []);
+                setTotalRows(res.count || 0);
+            } else {
+                setTrips([]);
+                setTotalRows(0);
+            }
+        } catch (error) {
+            console.error("Error fetching trips list:", error);
+            setTrips([]);
+            setTotalRows(0);
+            toast.error("Failed to fetch trips list");
+        } finally {
+            setIsPageLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        if (view === "LIST") {
+            fetchTripsList();
+        }
+    }, [pageNo, perPage, sortColumn, sortDirection, query, filter, view, selectedStatus]);
+
+    // Track cargo weight limits
+    useEffect(() => {
+        if (values.vehicle_id && values.cargo_weight) {
+            const selectedVehicle = availableVehicles.find(v => v.value === values.vehicle_id);
+            if (selectedVehicle && Number(values.cargo_weight) > selectedVehicle.max_load_capacity) {
+                setMaxCapacityWarning(`Warning: Cargo weight exceeds vehicle's maximum load capacity (${selectedVehicle.max_load_capacity} kg)`);
+            } else {
+                setMaxCapacityWarning("");
+            }
+        } else {
+            setMaxCapacityWarning("");
+        }
+    }, [values.vehicle_id, values.cargo_weight, availableVehicles]);
+
+    const handleSort = (column, direction) => {
+        setSortColumn(column.sortField);
+        setSortDirection(direction);
+    };
+
+    const handlePageChange = (page) => {
+        setPageNo(page);
+    };
+
+    const handlePerRowsChange = async (newPerPage) => {
+        setPerPage(newPerPage);
+    };
+
+    const handleFilter = (e) => {
+        setPageNo(1);
+        setFilter(e.target.checked);
+    };
+
+    const handleAddClick = () => {
+        setValues(initialState);
+        setFormErrors({});
+        setIsSubmit(false);
+        fetchAvailableAssets();
+        setView("ADD");
+    };
+
+    const handleEditClick = (id) => {
+        setEditId(id);
+        setIsLoading(true);
+        getTripById(id)
+            .then(async (res) => {
+                if (res.data?.data) {
+                    const data = res.data.data;
+                    if (data.status !== "Draft") {
+                        toast.error("Only Draft trips can be modified");
+                        return;
+                    }
+                    
+                    // Fetch available options including currently assigned asset items
+                    await fetchAvailableAssets(data.vehicle_id, data.driver_id);
+
+                    setValues({
+                        source: data.source,
+                        destination: data.destination,
+                        vehicle_id: data.vehicle_id?._id || "",
+                        driver_id: data.driver_id?._id || "",
+                        cargo_weight: data.cargo_weight,
+                        planned_distance: data.planned_distance,
+                        notes: data.notes || "",
+                    });
+                    setFormErrors({});
+                    setIsSubmit(false);
+                    setView("EDIT");
+                }
+            })
+            .catch((err) => {
+                console.error("Error loading trip data:", err);
+                toast.error("Failed to load trip details");
+            })
+            .finally(() => {
+                setIsLoading(false);
+            });
+    };
+
+    const handleCancelClick = () => {
+        setView("LIST");
+        setValues(initialState);
+        setFormErrors({});
+        setIsSubmit(false);
+    };
+
+    const handleChange = (e) => {
+        const { name, value } = e.target;
+        setValues({ ...values, [name]: value });
+    };
+
+    const validate = (fields) => {
+        const errors = {};
+        if (!fields.source.trim()) errors.source = "Source location is required";
+        if (!fields.destination.trim()) errors.destination = "Destination location is required";
+        if (!fields.vehicle_id) errors.vehicle_id = "Vehicle assignment is required";
+        if (!fields.driver_id) errors.driver_id = "Driver assignment is required";
+        
+        if (!fields.cargo_weight || isNaN(fields.cargo_weight) || Number(fields.cargo_weight) <= 0) {
+            errors.cargo_weight = "Cargo weight must be a positive number";
+        } else if (fields.vehicle_id) {
+            const vehicle = availableVehicles.find(v => v.value === fields.vehicle_id);
+            if (vehicle && Number(fields.cargo_weight) > vehicle.max_load_capacity) {
+                errors.cargo_weight = `Cargo weight exceeds vehicle's max capacity (${vehicle.max_load_capacity} kg)`;
+            }
+        }
+
+        if (!fields.planned_distance || isNaN(fields.planned_distance) || Number(fields.planned_distance) <= 0) {
+            errors.planned_distance = "Planned distance must be a positive number";
+        }
+
+        return errors;
+    };
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        const errors = validate(values);
+        setFormErrors(errors);
+        setIsSubmit(true);
+
+        if (Object.keys(errors).length === 0) {
+            setIsLoading(true);
+            const payload = {
+                ...values,
+                cargo_weight: Number(values.cargo_weight),
+                planned_distance: Number(values.planned_distance),
+            };
+
+            if (view === "ADD") {
+                createTrip(payload)
+                    .then((res) => {
+                        if (res.data?.isOk) {
+                            toast.success("Trip Draft Created successfully");
+                            setView("LIST");
+                        } else {
+                            toast.error(res.data?.message || "Failed to create trip draft");
+                        }
+                    })
+                    .catch((err) => {
+                        console.error("Error creating trip:", err);
+                        toast.error(err.response?.data?.message || "Failed to create trip draft");
+                    })
+                    .finally(() => {
+                        setIsLoading(false);
+                    });
+            } else if (view === "EDIT") {
+                updateTrip(editId, payload)
+                    .then((res) => {
+                        if (res.data?.isOk) {
+                            toast.success("Trip updated successfully");
+                            setView("LIST");
+                        } else {
+                            toast.error(res.data?.message || "Failed to update trip");
+                        }
+                    })
+                    .catch((err) => {
+                        console.error("Error updating trip:", err);
+                        toast.error(err.response?.data?.message || "Failed to update trip");
+                    })
+                    .finally(() => {
+                        setIsLoading(false);
+                    });
+            }
+        }
+    };
+
+    const handleDeleteClick = (id) => {
+        setRemoveId(id);
+        setModalDelete(true);
+    };
+
+    const confirmDelete = (e) => {
+        e.preventDefault();
+        setIsDeleteLoading(true);
+        deleteTrip(removeId)
+            .then(() => {
+                setModalDelete(false);
+                toast.success("Trip removed successfully");
+                fetchTripsList();
+            })
+            .catch((err) => {
+                console.error("Error deleting trip:", err);
+                toast.error(err.response?.data?.message || "Failed to delete trip");
+            })
+            .finally(() => {
+                setIsDeleteLoading(false);
+            });
+    };
+
+    // View Details Modal
+    const handleViewDetails = (id) => {
+        getTripById(id)
+            .then((res) => {
+                if (res.data?.data) {
+                    setSelectedTripDetails(res.data.data);
+                    setModalView(true);
+                }
+            })
+            .catch((err) => {
+                console.error("Error fetching details:", err);
+                toast.error("Failed to fetch details");
+            });
+    };
+
+    // Dispatch Modal Flow
+    const handleDispatchClick = (id) => {
+        setActionId(id);
+        getTripById(id)
+            .then((res) => {
+                if (res.data?.data) {
+                    setSelectedTripDetails(res.data.data);
+                    setModalDispatch(true);
+                }
+            })
+            .catch((err) => {
+                console.error("Error loading trip details:", err);
+                toast.error("Failed to load details");
+            });
+    };
+
+    const confirmDispatch = () => {
+        setIsLoading(true);
+        dispatchTrip(actionId)
+            .then(() => {
+                setModalDispatch(false);
+                toast.success("Trip dispatched successfully! Vehicle and driver are now On Trip.");
+                fetchTripsList();
+            })
+            .catch((err) => {
+                console.error("Error dispatching trip:", err);
+                toast.error(err.response?.data?.message || "Failed to dispatch trip");
+            })
+            .finally(() => {
+                setIsLoading(false);
+            });
+    };
+
+    // Complete Modal Flow
+    const handleCompleteClick = (id) => {
+        setActionId(id);
+        getTripById(id)
+            .then((res) => {
+                if (res.data?.data) {
+                    const data = res.data.data;
+                    setSelectedTripDetails(data);
+                    setCurrentVehicleOdometer(data.vehicle_id?.odometer || 0);
+                    setFinalOdometer("");
+                    setFuelConsumed("");
+                    setModalComplete(true);
+                }
+            })
+            .catch((err) => {
+                console.error("Error fetching trip details for completion:", err);
+                toast.error("Failed to load trip details");
+            });
+    };
+
+    const confirmComplete = (e) => {
+        e.preventDefault();
+        if (!finalOdometer || isNaN(finalOdometer) || Number(finalOdometer) <= currentVehicleOdometer) {
+            toast.error(`Final odometer must be a number greater than the current vehicle odometer (${currentVehicleOdometer} km)`);
+            return;
+        }
+
+        setIsLoading(true);
+        const payload = {
+            final_odometer: Number(finalOdometer),
+            fuel_consumed: fuelConsumed ? Number(fuelConsumed) : undefined,
+        };
+
+        completeTrip(actionId, payload)
+            .then(() => {
+                setModalComplete(false);
+                toast.success("Trip completed! Vehicle odometer updated, assets marked Available.");
+                fetchTripsList();
+            })
+            .catch((err) => {
+                console.error("Error completing trip:", err);
+                toast.error(err.response?.data?.message || "Failed to complete trip");
+            })
+            .finally(() => {
+                setIsLoading(false);
+            });
+    };
+
+    // Cancel Modal Flow
+    const handleCancelClickAction = (id) => {
+        setActionId(id);
+        getTripById(id)
+            .then((res) => {
+                if (res.data?.data) {
+                    setSelectedTripDetails(res.data.data);
+                    setCancellationReason("");
+                    setModalCancel(true);
+                }
+            })
+            .catch((err) => {
+                console.error("Error fetching details:", err);
+                toast.error("Failed to load details");
+            });
+    };
+
+    const confirmCancel = (e) => {
+        e.preventDefault();
+        setIsLoading(true);
+        cancelTrip(actionId, { cancellation_reason: cancellationReason })
+            .then(() => {
+                setModalCancel(false);
+                toast.success("Trip cancelled successfully");
+                fetchTripsList();
+            })
+            .catch((err) => {
+                console.error("Error cancelling trip:", err);
+                toast.error(err.response?.data?.message || "Failed to cancel trip");
+            })
+            .finally(() => {
+                setIsLoading(false);
+            });
+    };
+
+    const col = [
+        {
+            name: "Trip #",
+            selector: (row) => row.trip_number,
+            sortable: true,
+            sortField: "trip_number",
+            minWidth: "140px",
+        },
+        {
+            name: "Route",
+            selector: (row) => `${row.source} ➔ ${row.destination}`,
+            sortable: false,
+            minWidth: "180px",
+        },
+        {
+            name: "Vehicle",
+            selector: (row) => row.vehicle_id ? `${row.vehicle_id.registration_number} (${row.vehicle_id.name_model})` : "N/A",
+            sortable: true,
+            sortField: "vehicle_id",
+            minWidth: "160px",
+        },
+        {
+            name: "Driver",
+            selector: (row) => row.driver_id ? row.driver_id.name : "N/A",
+            sortable: true,
+            sortField: "driver_id",
+            minWidth: "140px",
+        },
+        {
+            name: "Cargo (kg)",
+            selector: (row) => row.cargo_weight,
+            sortable: true,
+            sortField: "cargo_weight",
+            maxWidth: "110px",
+        },
+        {
+            name: "Distance (km)",
+            selector: (row) => row.planned_distance,
+            sortable: true,
+            sortField: "planned_distance",
+            maxWidth: "120px",
+        },
+        {
+            name: "Status",
+            selector: (row) => {
+                let badgeClass = "badge bg-secondary-subtle text-secondary";
+                if (row.status === "Dispatched") badgeClass = "badge bg-primary-subtle text-primary";
+                else if (row.status === "Completed") badgeClass = "badge bg-success-subtle text-success";
+                else if (row.status === "Cancelled") badgeClass = "badge bg-danger-subtle text-danger";
+
+                return <span className={badgeClass}>{row.status}</span>;
+            },
+            maxWidth: "110px",
+        },
+        {
+            name: "Actions",
+            selector: (row) => {
+                return (
+                    <div className="d-flex gap-1 flex-wrap py-1">
+                        {/* Always show View details */}
+                        <Button color="light" size="sm" onClick={() => handleViewDetails(row._id)}>
+                            View
+                        </Button>
+
+                        {row.status === "Draft" && (
+                            <>
+                                {currentPagePermissions?.edit && (
+                                    <Button color="success" size="sm" onClick={() => handleEditClick(row._id)}>
+                                        Edit
+                                    </Button>
+                                )}
+                                {currentPagePermissions?.write && (
+                                    <Button color="primary" size="sm" onClick={() => handleDispatchClick(row._id)}>
+                                        Dispatch
+                                    </Button>
+                                )}
+                                {currentPagePermissions?.edit && (
+                                    <Button color="warning" size="sm" onClick={() => handleCancelClickAction(row._id)}>
+                                        Cancel
+                                    </Button>
+                                )}
+                                {currentPagePermissions?.delete && (
+                                    <Button color="danger" size="sm" onClick={() => handleDeleteClick(row._id)}>
+                                        Delete
+                                    </Button>
+                                )}
+                            </>
+                        )}
+
+                        {row.status === "Dispatched" && (
+                            <>
+                                {currentPagePermissions?.write && (
+                                    <Button color="success" size="sm" onClick={() => handleCompleteClick(row._id)}>
+                                        Complete
+                                    </Button>
+                                )}
+                                {currentPagePermissions?.edit && (
+                                    <Button color="warning" size="sm" onClick={() => handleCancelClickAction(row._id)}>
+                                        Cancel
+                                    </Button>
+                                )}
+                            </>
+                        )}
+                    </div>
+                );
+            },
+            sortable: false,
+            minWidth: "220px",
+        },
+    ];
+
+    document.title = `Trip Management | ${adminData?.companyName || "TransitOps"}`;
+
+    return (
+        <React.Fragment>
+            <div className="page-content">
+                <Container fluid>
+                    {view === "LIST" && (
+                        <>
+                            <BreadCrumb
+                                maintitle="Master"
+                                title="Trip"
+                                pageTitle="Master"
+                            />
+                            <Row>
+                                <Col lg={12}>
+                                    <Card>
+                                        <CardHeader>
+                                            <FormsHeader
+                                                formName="Trip Management"
+                                                filter={filter}
+                                                handleFilter={handleFilter}
+                                                tog_list={handleAddClick}
+                                                setQuery={setQuery}
+                                                showAddButton={currentPagePermissions?.write}
+                                            />
+                                        </CardHeader>
+                                        <CardBody>
+                                            <Row className="mb-3 align-items-center">
+                                                <Col md={4}>
+                                                    <Label for="filter-status" className="form-label mb-1">Filter by Status</Label>
+                                                    <Select
+                                                        id="filter-status"
+                                                        options={[
+                                                            { value: "", label: "All Statuses" },
+                                                            ...statusOptions
+                                                        ]}
+                                                        value={statusOptions.find(opt => opt.value === selectedStatus) || { value: "", label: "All Statuses" }}
+                                                        onChange={(selected) => {
+                                                            setPageNo(1);
+                                                            setSelectedStatus(selected ? selected.value : "");
+                                                        }}
+                                                        placeholder="Filter by Status"
+                                                        isDisabled={isPageLoading}
+                                                    />
+                                                </Col>
+                                            </Row>
+                                            <div id="tripList">
+                                                <div className="table-responsive table-card mt-1 mb-1 text-right">
+                                                    <DataTable
+                                                        columns={col}
+                                                        data={trips}
+                                                        progressPending={isPageLoading}
+                                                        sortServer
+                                                        onSort={handleSort}
+                                                        pagination
+                                                        paginationServer
+                                                        paginationTotalRows={totalRows}
+                                                        paginationPerPage={100}
+                                                        paginationRowsPerPageOptions={[50, 100, 200, 300, totalRows]}
+                                                        onChangeRowsPerPage={handlePerRowsChange}
+                                                        onChangePage={handlePageChange}
+                                                    />
+                                                </div>
+                                            </div>
+                                        </CardBody>
+                                    </Card>
+                                </Col>
+                            </Row>
+                        </>
+                    )}
+
+                    {(view === "ADD" || view === "EDIT") && (
+                        <>
+                            <BreadCrumb
+                                maintitle="Master"
+                                title={view === "ADD" ? "Add Trip" : "Edit Trip"}
+                                pageTitle="Master"
+                            />
+                            <Row>
+                                <Col lg={12}>
+                                    <Card>
+                                        <CardHeader className="align-items-center d-flex">
+                                            <h4 className="card-title mb-0 flex-grow-1">
+                                                {view === "ADD" ? "Create New Trip Draft" : "Update Trip Draft"}
+                                            </h4>
+                                        </CardHeader>
+                                        <CardBody>
+                                            <form onSubmit={handleSubmit}>
+                                                <Row>
+                                                    <Col md={6}>
+                                                        <FormGroup className="mb-3">
+                                                            <Label for="source">Source Location <span className="text-danger">*</span></Label>
+                                                            <Input
+                                                                type="text"
+                                                                name="source"
+                                                                id="source"
+                                                                placeholder="e.g. Warehouse A, New York"
+                                                                value={values.source}
+                                                                onChange={handleChange}
+                                                                disabled={isLoading}
+                                                            />
+                                                            {isSubmit && formErrors.source && (
+                                                                <span className="text-danger">{formErrors.source}</span>
+                                                            )}
+                                                        </FormGroup>
+                                                    </Col>
+                                                    <Col md={6}>
+                                                        <FormGroup className="mb-3">
+                                                            <Label for="destination">Destination Location <span className="text-danger">*</span></Label>
+                                                            <Input
+                                                                type="text"
+                                                                name="destination"
+                                                                id="destination"
+                                                                placeholder="e.g. Port Authority, New Jersey"
+                                                                value={values.destination}
+                                                                onChange={handleChange}
+                                                                disabled={isLoading}
+                                                            />
+                                                            {isSubmit && formErrors.destination && (
+                                                                <span className="text-danger">{formErrors.destination}</span>
+                                                            )}
+                                                        </FormGroup>
+                                                    </Col>
+                                                </Row>
+
+                                                <Row>
+                                                    <Col md={6}>
+                                                        <FormGroup className="mb-3">
+                                                            <Label for="vehicle_id">Assign Vehicle <span className="text-danger">*</span></Label>
+                                                            <Select
+                                                                id="vehicle_id"
+                                                                options={availableVehicles}
+                                                                value={availableVehicles.find(opt => opt.value === values.vehicle_id) || null}
+                                                                onChange={(selected) => setValues({ ...values, vehicle_id: selected ? selected.value : "" })}
+                                                                placeholder="Select Available Vehicle..."
+                                                                isDisabled={isLoading}
+                                                            />
+                                                            {isSubmit && formErrors.vehicle_id && (
+                                                                <span className="text-danger">{formErrors.vehicle_id}</span>
+                                                            )}
+                                                        </FormGroup>
+                                                    </Col>
+                                                    <Col md={6}>
+                                                        <FormGroup className="mb-3">
+                                                            <Label for="driver_id">Assign Driver <span className="text-danger">*</span></Label>
+                                                            <Select
+                                                                id="driver_id"
+                                                                options={availableDrivers}
+                                                                value={availableDrivers.find(opt => opt.value === values.driver_id) || null}
+                                                                onChange={(selected) => setValues({ ...values, driver_id: selected ? selected.value : "" })}
+                                                                placeholder="Select Available Driver..."
+                                                                isDisabled={isLoading}
+                                                            />
+                                                            {isSubmit && formErrors.driver_id && (
+                                                                <span className="text-danger">{formErrors.driver_id}</span>
+                                                            )}
+                                                        </FormGroup>
+                                                    </Col>
+                                                </Row>
+
+                                                <Row>
+                                                    <Col md={6}>
+                                                        <FormGroup className="mb-3">
+                                                            <Label for="cargo_weight">Cargo Weight (kg) <span className="text-danger">*</span></Label>
+                                                            <Input
+                                                                type="number"
+                                                                name="cargo_weight"
+                                                                id="cargo_weight"
+                                                                placeholder="e.g. 450"
+                                                                value={values.cargo_weight}
+                                                                onChange={handleChange}
+                                                                disabled={isLoading}
+                                                            />
+                                                            {maxCapacityWarning && (
+                                                                <div className="text-warning mt-1" style={{ fontSize: "12px" }}>
+                                                                    <i className="ri-error-warning-fill me-1"></i>
+                                                                    {maxCapacityWarning}
+                                                                </div>
+                                                            )}
+                                                            {isSubmit && formErrors.cargo_weight && (
+                                                                <span className="text-danger">{formErrors.cargo_weight}</span>
+                                                            )}
+                                                        </FormGroup>
+                                                    </Col>
+                                                    <Col md={6}>
+                                                        <FormGroup className="mb-3">
+                                                            <Label for="planned_distance">Planned Distance (km) <span className="text-danger">*</span></Label>
+                                                            <Input
+                                                                type="number"
+                                                                name="planned_distance"
+                                                                id="planned_distance"
+                                                                placeholder="e.g. 150"
+                                                                value={values.planned_distance}
+                                                                onChange={handleChange}
+                                                                disabled={isLoading}
+                                                            />
+                                                            {isSubmit && formErrors.planned_distance && (
+                                                                <span className="text-danger">{formErrors.planned_distance}</span>
+                                                            )}
+                                                        </FormGroup>
+                                                    </Col>
+                                                </Row>
+
+                                                <Row>
+                                                    <Col md={12}>
+                                                        <FormGroup className="mb-3">
+                                                            <Label for="notes">Notes / Instructions</Label>
+                                                            <Input
+                                                                type="textarea"
+                                                                name="notes"
+                                                                id="notes"
+                                                                rows="3"
+                                                                placeholder="Enter notes here..."
+                                                                value={values.notes}
+                                                                onChange={handleChange}
+                                                                disabled={isLoading}
+                                                            />
+                                                        </FormGroup>
+                                                    </Col>
+                                                </Row>
+
+                                                <div className="d-flex justify-content-end gap-2 mt-4">
+                                                    <Button
+                                                        color="light"
+                                                        type="button"
+                                                        onClick={handleCancelClick}
+                                                        disabled={isLoading}
+                                                    >
+                                                        Cancel
+                                                    </Button>
+                                                    <Button
+                                                        color="success"
+                                                        type="submit"
+                                                        disabled={isLoading}
+                                                    >
+                                                        {isLoading ? "Saving..." : (view === "ADD" ? "Submit" : "Update")}
+                                                    </Button>
+                                                </div>
+                                            </form>
+                                        </CardBody>
+                                    </Card>
+                                </Col>
+                            </Row>
+                        </>
+                    )}
+                </Container>
+            </div>
+
+            {/* Standard Delete Modal */}
+            <DeleteModal
+                show={modalDelete}
+                onDeleteClick={confirmDelete}
+                onCloseClick={() => setModalDelete(false)}
+                isLoading={isDeleteLoading}
+            />
+
+            {/* Dispatch Confirmation Modal */}
+            <Modal isOpen={modalDispatch} toggle={() => setModalDispatch(false)} centered>
+                <ModalHeader toggle={() => setModalDispatch(false)}>Confirm Dispatch</ModalHeader>
+                <ModalBody>
+                    {selectedTripDetails && (
+                        <div>
+                            <p>Are you sure you want to dispatch this trip?</p>
+                            <div className="bg-light p-3 rounded">
+                                <strong>Trip Number:</strong> {selectedTripDetails.trip_number} <br />
+                                <strong>Route:</strong> {selectedTripDetails.source} ➔ {selectedTripDetails.destination} <br />
+                                <strong>Vehicle:</strong> {selectedTripDetails.vehicle_id?.registration_number} ({selectedTripDetails.vehicle_id?.name_model}) <br />
+                                <strong>Driver:</strong> {selectedTripDetails.driver_id?.name} <br />
+                                <strong>Cargo Weight:</strong> {selectedTripDetails.cargo_weight} kg
+                            </div>
+                            <p className="text-danger mt-3 mb-0">
+                                <i className="ri-alert-line me-1"></i>
+                                Dispatching will mark both Vehicle and Driver as <strong>On Trip</strong>.
+                            </p>
+                        </div>
+                    )}
+                </ModalBody>
+                <ModalFooter>
+                    <Button color="light" onClick={() => setModalDispatch(false)} disabled={isLoading}>Cancel</Button>
+                    <Button color="primary" onClick={confirmDispatch} disabled={isLoading}>
+                        {isLoading ? "Dispatching..." : "Yes, Dispatch"}
+                    </Button>
+                </ModalFooter>
+            </Modal>
+
+            {/* Complete Trip Modal */}
+            <Modal isOpen={modalComplete} toggle={() => setModalComplete(false)} centered>
+                <form onSubmit={confirmComplete}>
+                    <ModalHeader toggle={() => setModalComplete(false)}>Complete Trip</ModalHeader>
+                    <ModalBody>
+                        {selectedTripDetails && (
+                            <div>
+                                <div className="bg-light p-3 rounded mb-3">
+                                    <strong>Trip:</strong> {selectedTripDetails.trip_number} ({selectedTripDetails.source} ➔ {selectedTripDetails.destination}) <br />
+                                    <strong>Vehicle:</strong> {selectedTripDetails.vehicle_id?.registration_number} <br />
+                                    <strong>Current Vehicle Odometer:</strong> {currentVehicleOdometer} km
+                                </div>
+                                <FormGroup className="mb-3">
+                                    <Label for="final_odometer">Final Odometer Reading (km) <span className="text-danger">*</span></Label>
+                                    <Input
+                                        type="number"
+                                        id="final_odometer"
+                                        placeholder={`Must be greater than ${currentVehicleOdometer}`}
+                                        value={finalOdometer}
+                                        onChange={(e) => setFinalOdometer(e.target.value)}
+                                        required
+                                        disabled={isLoading}
+                                        min={currentVehicleOdometer + 1}
+                                    />
+                                </FormGroup>
+                                <FormGroup className="mb-0">
+                                    <Label for="fuel_consumed">Fuel Consumed (Liters)</Label>
+                                    <Input
+                                        type="number"
+                                        id="fuel_consumed"
+                                        placeholder="e.g. 45"
+                                        value={fuelConsumed}
+                                        onChange={(e) => setFuelConsumed(e.target.value)}
+                                        disabled={isLoading}
+                                        min="0.1"
+                                        step="0.1"
+                                    />
+                                </FormGroup>
+                            </div>
+                        )}
+                    </ModalBody>
+                    <ModalFooter>
+                        <Button color="light" type="button" onClick={() => setModalComplete(false)} disabled={isLoading}>Cancel</Button>
+                        <Button color="success" type="submit" disabled={isLoading}>
+                            {isLoading ? "Completing..." : "Complete Trip"}
+                        </Button>
+                    </ModalFooter>
+                </form>
+            </Modal>
+
+            {/* Cancel Trip Modal */}
+            <Modal isOpen={modalCancel} toggle={() => setModalCancel(false)} centered>
+                <form onSubmit={confirmCancel}>
+                    <ModalHeader toggle={() => setModalCancel(false)}>Cancel Trip</ModalHeader>
+                    <ModalBody>
+                        {selectedTripDetails && (
+                            <div>
+                                <p>Are you sure you want to cancel trip <strong>{selectedTripDetails.trip_number}</strong>?</p>
+                                {selectedTripDetails.status === "Dispatched" && (
+                                    <p className="text-warning">
+                                        <i className="ri-error-warning-line me-1"></i>
+                                        Cancelling a dispatched trip will release the vehicle and driver back to <strong>Available</strong>.
+                                    </p>
+                                )}
+                                <FormGroup className="mb-0">
+                                    <Label for="cancellation_reason">Reason for Cancellation</Label>
+                                    <Input
+                                        type="textarea"
+                                        id="cancellation_reason"
+                                        rows="3"
+                                        placeholder="Explain why the trip is being cancelled..."
+                                        value={cancellationReason}
+                                        onChange={(e) => setCancellationReason(e.target.value)}
+                                        disabled={isLoading}
+                                    />
+                                </FormGroup>
+                            </div>
+                        )}
+                    </ModalBody>
+                    <ModalFooter>
+                        <Button color="light" type="button" onClick={() => setModalCancel(false)} disabled={isLoading}>Back</Button>
+                        <Button color="warning" type="submit" disabled={isLoading}>
+                            {isLoading ? "Cancelling..." : "Cancel Trip"}
+                        </Button>
+                    </ModalFooter>
+                </form>
+            </Modal>
+
+            {/* View Details Modal */}
+            <Modal isOpen={modalView} toggle={() => setModalView(false)} size="lg" centered>
+                <ModalHeader toggle={() => setModalView(false)}>Trip Details</ModalHeader>
+                <ModalBody>
+                    {selectedTripDetails && (
+                        <div className="table-responsive">
+                            <table className="table table-bordered mb-0">
+                                id="trip-details-table"
+                                <tbody>
+                                    <tr>
+                                        <th style={{ width: "35%" }}>Trip Number</th>
+                                        <td>{selectedTripDetails.trip_number}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Route</th>
+                                        <td>{selectedTripDetails.source} ➔ {selectedTripDetails.destination}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Status</th>
+                                        <td>
+                                            <span className={`badge ${
+                                                selectedTripDetails.status === "Draft" ? "bg-secondary-subtle text-secondary" :
+                                                selectedTripDetails.status === "Dispatched" ? "bg-primary-subtle text-primary" :
+                                                selectedTripDetails.status === "Completed" ? "bg-success-subtle text-success" :
+                                                "bg-danger-subtle text-danger"
+                                            }`}>
+                                                {selectedTripDetails.status}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <th>Vehicle Assigned</th>
+                                        <td>
+                                            {selectedTripDetails.vehicle_id ? (
+                                                <>
+                                                    <strong>Reg Number:</strong> {selectedTripDetails.vehicle_id.registration_number} <br />
+                                                    <strong>Model:</strong> {selectedTripDetails.vehicle_id.name_model} <br />
+                                                    <strong>Type:</strong> {selectedTripDetails.vehicle_id.type}
+                                                </>
+                                            ) : "N/A"}
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <th>Driver Assigned</th>
+                                        <td>
+                                            {selectedTripDetails.driver_id ? (
+                                                <>
+                                                    <strong>Name:</strong> {selectedTripDetails.driver_id.name} <br />
+                                                    <strong>License:</strong> {selectedTripDetails.driver_id.licenseNumber} ({selectedTripDetails.driver_id.licenseCategory})
+                                                </>
+                                            ) : "N/A"}
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <th>Cargo Weight</th>
+                                        <td>{selectedTripDetails.cargo_weight} kg</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Planned Distance</th>
+                                        <td>{selectedTripDetails.planned_distance} km</td>
+                                    </tr>
+                                    {selectedTripDetails.dispatched_at && (
+                                        <tr>
+                                            <th>Dispatched At</th>
+                                            <td>{new Date(selectedTripDetails.dispatched_at).toLocaleString()}</td>
+                                        </tr>
+                                    )}
+                                    {selectedTripDetails.completed_at && (
+                                        <>
+                                            <tr>
+                                                <th>Completed At</th>
+                                                <td>{new Date(selectedTripDetails.completed_at).toLocaleString()}</td>
+                                            </tr>
+                                            <tr>
+                                                <th>Final Odometer</th>
+                                                <td>{selectedTripDetails.final_odometer} km</td>
+                                            </tr>
+                                            <tr>
+                                                <th>Fuel Consumed</th>
+                                                <td>{selectedTripDetails.fuel_consumed ? `${selectedTripDetails.fuel_consumed} Liters` : "Not recorded"}</td>
+                                            </tr>
+                                        </>
+                                    )}
+                                    {selectedTripDetails.cancelled_at && (
+                                        <>
+                                            <tr>
+                                                <th>Cancelled At</th>
+                                                <td>{new Date(selectedTripDetails.cancelled_at).toLocaleString()}</td>
+                                            </tr>
+                                            <tr>
+                                                <th>Cancellation Reason</th>
+                                                <td>{selectedTripDetails.cancellation_reason || "No reason given"}</td>
+                                            </tr>
+                                        </>
+                                    )}
+                                    {selectedTripDetails.notes && (
+                                        <tr>
+                                            <th>Notes</th>
+                                            <td>{selectedTripDetails.notes}</td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </ModalBody>
+                <ModalFooter>
+                    <Button color="secondary" onClick={() => setModalView(false)}>Close</Button>
+                </ModalFooter>
+            </Modal>
+        </React.Fragment>
+    );
+};
+
+export default TripManagement;

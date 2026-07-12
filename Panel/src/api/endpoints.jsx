@@ -150,6 +150,16 @@ export const ENDPOINTS = {
         SEARCH: `${V1}/maintenance-logs/search`,
     },
 
+    // Trips endpoints
+    TRIPS: {
+        BASE: `${V1}/trips`,
+        BY_ID: (id) => `${V1}/trips/${id}`,
+        SEARCH: `${V1}/trips/search`,
+        DISPATCH: (id) => `${V1}/trips/${id}/dispatch`,
+        COMPLETE: (id) => `${V1}/trips/${id}/complete`,
+        CANCEL: (id) => `${V1}/trips/${id}/cancel`,
+    },
+
     // Admin endpoints
     ADMIN: {
         LOGIN_ATTEMPTS: `${V1}/admin/auth/login-attempts`,
