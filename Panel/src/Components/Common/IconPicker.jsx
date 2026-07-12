@@ -66,6 +66,14 @@ const ICON_LIST = [
     { name: "Video", class: "ri-video-line" },
     { name: "Music", class: "ri-music-line" },
     { name: "Language", class: "ri-global-line" },
+    { name: "Vehicle", class: "ri-caravan-fill" },
+    { name: "Driver", class: "ri-steering-2-line" },
+    { name: "Trip", class: "ri-ancient-pavilion-line" },
+    { name: "Management", class: "ri-trello-line" },
+    { name: "Fuel", class: "ri-oil-fill" },
+    { name: "Reports", class: "ri-file-chart-line" },
+
+
 
     // Boxicons alternatives
     { name: "Home (Box)", class: "bx bx-home" },
@@ -177,9 +185,8 @@ const IconPicker = ({ value, onChange, label, error, required }) => {
                                 <DropdownItem
                                     key={index}
                                     onClick={() => handleIconSelect(icon.class)}
-                                    className={`icon-item ${
-                                        value === icon.class ? "active" : ""
-                                    }`}
+                                    className={`icon-item ${value === icon.class ? "active" : ""
+                                        }`}
                                     style={{
                                         display: "flex",
                                         flexDirection: "column",

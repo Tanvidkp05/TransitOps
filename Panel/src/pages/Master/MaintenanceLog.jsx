@@ -19,6 +19,7 @@ import { toast } from "react-toastify";
 import Select from "react-select";
 import { AuthContext } from "../../context/AuthContext";
 import { MenuContext } from "../../context/MenuContext";
+import config from "../../config";
 import {
     createMaintenanceLog,
     deleteMaintenanceLog,
@@ -218,7 +219,7 @@ const MaintenanceLog = () => {
                     });
 
                     if (data.image) {
-                        const apiUrl = process.env.REACT_APP_API_URL || "http://localhost:8000";
+                        const apiUrl = config.api.API_URL;
                         setImagePreview(`${apiUrl}/${data.image}`);
                         setShowFileInput(false);
                     } else {
@@ -390,7 +391,7 @@ const MaintenanceLog = () => {
             name: "Receipt / Photo",
             selector: (row) => {
                 if (row.image) {
-                    const apiUrl = process.env.REACT_APP_API_URL || "http://localhost:8000";
+                    const apiUrl = config.api.API_URL;
                     return (
                         <img
                             src={`${apiUrl}/${row.image}`}

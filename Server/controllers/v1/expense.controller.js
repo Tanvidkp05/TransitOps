@@ -8,7 +8,7 @@ import path from "path";
 const deleteFileSafe = (filePath) => {
   if (!filePath) return;
   try {
-    const absolutePath = path.join(filePath);
+    const absolutePath = path.resolve(filePath);
     if (fs.existsSync(absolutePath)) {
       fs.unlinkSync(absolutePath);
       console.log(`[FILE] Deleted file: ${absolutePath}`);
@@ -31,36 +31,33 @@ export const createExpense = async (req, res) => {
       isActive,
     } = req.body;
 
-    console.log("Received createExpense data:", req.body);
+    const receiptPath = req.file ? req.file.path.replace(/\\/g, "/") : "";
 
-    // Validate vehicle exists
-    const vehicle = await Vehicle.findById(vehicle_id);
-    if (!vehicle) {
-      if (req.file) deleteFileSafe(req.file.path);
-      return res.status(404).json({
-        isOk: false,
-        message: "Vehicle not found",
-      });
-    }
-
-    const receiptImagePath = req.file ? req.file.path.replace(/\\/g, "/") : "";
-
-    // Create Expense Log
     const expense = await Expense.create({
       vehicle_id,
       expense_type,
       amount: Number(amount),
-      date: date || new Date(),
-      fuel_liters: expense_type === "Fuel" && fuel_liters !== undefined ? Number(fuel_liters) : undefined,
-      odometer_reading: expense_type === "Fuel" && odometer_reading !== undefined ? Number(odometer_reading) : undefined,
-      description,
-      receipt_image: receiptImagePath,
+      date: new Date(date),
+      fuel_liters: fuel_liters ? Number(fuel_liters) : null,
+      odometer_reading: odometer_reading ? Number(odometer_reading) : null,
+      description: description || "",
+      receipt_image: receiptPath,
       isActive: isActive !== undefined ? (isActive === "true" || isActive === true) : true,
     });
 
+    // If it's a fuel log with odometer reading, let's also update the vehicle's odometer!
+    if (expense_type === "Fuel" && odometer_reading) {
+      const vehicle = await Vehicle.findById(vehicle_id);
+      if (vehicle && Number(odometer_reading) > vehicle.odometer) {
+        vehicle.odometer = Number(odometer_reading);
+        await vehicle.save();
+      }
+    }
+
     res.status(201).json({
       isOk: true,
-      message: "Expense log created successfully",
+      status: 201,
+      message: "Expense logged successfully",
       data: expense,
     });
   } catch (error) {
@@ -68,6 +65,7 @@ export const createExpense = async (req, res) => {
     if (req.file) deleteFileSafe(req.file.path);
     res.status(500).json({
       isOk: false,
+      status: 500,
       message: "Error creating expense log",
       error: error.message,
     });
@@ -76,17 +74,19 @@ export const createExpense = async (req, res) => {
 
 export const getAllExpenses = async (req, res) => {
   try {
-    const expenses = await Expense.find({ isActive: true }).populate("vehicle_id");
+    const expenses = await Expense.find().populate("vehicle_id", "registration_number name_model").sort({ date: -1 }).lean();
     res.status(200).json({
       isOk: true,
-      message: "Expense logs fetched successfully",
+      status: 200,
+      message: "Expenses fetched successfully",
       data: expenses,
     });
   } catch (error) {
     console.error("Error in getAllExpenses:", error);
     res.status(500).json({
       isOk: false,
-      message: "Error fetching expense logs",
+      status: 500,
+      message: "Error fetching expenses",
       error: error.message,
     });
   }
@@ -95,23 +95,26 @@ export const getAllExpenses = async (req, res) => {
 export const getExpenseById = async (req, res) => {
   try {
     const { expenseId } = req.params;
-    const expense = await Expense.findById(expenseId).populate("vehicle_id");
+    const expense = await Expense.findById(expenseId).populate("vehicle_id", "registration_number name_model").lean();
     if (!expense) {
       return res.status(404).json({
         isOk: false,
-        message: "Expense log not found",
+        status: 404,
+        message: "Expense record not found",
       });
     }
     res.status(200).json({
       isOk: true,
-      message: "Expense log fetched successfully",
+      status: 200,
+      message: "Expense fetched successfully",
       data: expense,
     });
   } catch (error) {
     console.error("Error in getExpenseById:", error);
     res.status(500).json({
       isOk: false,
-      message: "Error fetching expense log",
+      status: 500,
+      message: "Error fetching expense details",
       error: error.message,
     });
   }
@@ -120,6 +123,16 @@ export const getExpenseById = async (req, res) => {
 export const updateExpense = async (req, res) => {
   try {
     const { expenseId } = req.params;
+    const expense = await Expense.findById(expenseId);
+    if (!expense) {
+      if (req.file) deleteFileSafe(req.file.path);
+      return res.status(404).json({
+        isOk: false,
+        status: 404,
+        message: "Expense record not found",
+      });
+    }
+
     const {
       vehicle_id,
       expense_type,
@@ -132,66 +145,46 @@ export const updateExpense = async (req, res) => {
       removeImage,
     } = req.body;
 
-    console.log("Received updateExpense data:", req.body);
+    if (vehicle_id !== undefined) expense.vehicle_id = vehicle_id;
+    if (expense_type !== undefined) expense.expense_type = expense_type;
+    if (amount !== undefined) expense.amount = Number(amount);
+    if (date !== undefined) expense.date = new Date(date);
+    if (fuel_liters !== undefined) expense.fuel_liters = fuel_liters ? Number(fuel_liters) : null;
+    if (odometer_reading !== undefined) expense.odometer_reading = odometer_reading ? Number(odometer_reading) : null;
+    if (description !== undefined) expense.description = description;
+    if (isActive !== undefined) expense.isActive = isActive === "true" || isActive === true;
 
-    const expense = await Expense.findById(expenseId);
-    if (!expense) {
-      if (req.file) deleteFileSafe(req.file.path);
-      return res.status(404).json({
-        isOk: false,
-        message: "Expense log not found",
-      });
+    // Handle receipt image removal
+    if (removeImage === "true" || removeImage === true) {
+      if (expense.receipt_image) {
+        deleteFileSafe(expense.receipt_image);
+        expense.receipt_image = "";
+      }
     }
 
-    // Validate new vehicle exists if changing
-    const targetVehicleId = vehicle_id || expense.vehicle_id;
-    const vehicle = await Vehicle.findById(targetVehicleId);
-    if (!vehicle) {
-      if (req.file) deleteFileSafe(req.file.path);
-      return res.status(404).json({
-        isOk: false,
-        message: "Associated vehicle not found",
-      });
-    }
-
-    // Handle receipt image upload/removal
-    let receiptImagePath = expense.receipt_image;
+    // Handle new receipt image upload
     if (req.file) {
       if (expense.receipt_image) {
         deleteFileSafe(expense.receipt_image);
       }
-      receiptImagePath = req.file.path.replace(/\\/g, "/");
-    } else if (removeImage === "true" || removeImage === true) {
-      if (expense.receipt_image) {
-        deleteFileSafe(expense.receipt_image);
-      }
-      receiptImagePath = "";
+      expense.receipt_image = req.file.path.replace(/\\/g, "/");
     }
-
-    // Update expense fields
-    expense.vehicle_id = targetVehicleId;
-    expense.expense_type = expense_type || expense.expense_type;
-    expense.amount = amount !== undefined ? Number(amount) : expense.amount;
-    expense.date = date || expense.date;
-
-    const newType = expense_type || expense.expense_type;
-    if (newType === "Fuel") {
-      expense.fuel_liters = fuel_liters !== undefined ? Number(fuel_liters) : expense.fuel_liters;
-      expense.odometer_reading = odometer_reading !== undefined ? Number(odometer_reading) : expense.odometer_reading;
-    } else {
-      expense.fuel_liters = undefined;
-      expense.odometer_reading = undefined;
-    }
-
-    expense.description = description !== undefined ? description : expense.description;
-    expense.receipt_image = receiptImagePath;
-    expense.isActive = isActive !== undefined ? (isActive === "true" || isActive === true) : expense.isActive;
 
     await expense.save();
 
+    // Update vehicle's odometer if odometer_reading is increased in a fuel log
+    if (expense.expense_type === "Fuel" && expense.odometer_reading) {
+      const vehicle = await Vehicle.findById(expense.vehicle_id);
+      if (vehicle && Number(expense.odometer_reading) > vehicle.odometer) {
+        vehicle.odometer = Number(expense.odometer_reading);
+        await vehicle.save();
+      }
+    }
+
     res.status(200).json({
       isOk: true,
-      message: "Expense log updated successfully",
+      status: 200,
+      message: "Expense updated successfully",
       data: expense,
     });
   } catch (error) {
@@ -199,7 +192,8 @@ export const updateExpense = async (req, res) => {
     if (req.file) deleteFileSafe(req.file.path);
     res.status(500).json({
       isOk: false,
-      message: "Error updating expense log",
+      status: 500,
+      message: "Error updating expense",
       error: error.message,
     });
   }
@@ -212,26 +206,27 @@ export const deleteExpense = async (req, res) => {
     if (!expense) {
       return res.status(404).json({
         isOk: false,
-        message: "Expense log not found",
+        status: 404,
+        message: "Expense record not found",
       });
     }
 
-    // Delete image file if exists
     if (expense.receipt_image) {
       deleteFileSafe(expense.receipt_image);
     }
 
     await Expense.findByIdAndDelete(expenseId);
-
     res.status(200).json({
       isOk: true,
-      message: "Expense log deleted successfully",
+      status: 200,
+      message: "Expense deleted successfully",
     });
   } catch (error) {
     console.error("Error in deleteExpense:", error);
     res.status(500).json({
       isOk: false,
-      message: "Error deleting expense log",
+      status: 500,
+      message: "Error deleting expense",
       error: error.message,
     });
   }
@@ -239,247 +234,91 @@ export const deleteExpense = async (req, res) => {
 
 export const listExpensesByParams = async (req, res) => {
   try {
-    let { skip, per_page, sorton, sortdir, match, isActive } = req.body;
+    let { skip = 0, per_page = 100, sorton, sortdir, match, isActive } = req.body;
 
-    let matchCondition = {};
+    skip = Number(skip) || 0;
+    per_page = Number(per_page) || 100;
+
+    const matchCondition = {};
     if (isActive !== undefined && isActive !== null && isActive !== "") {
       matchCondition.isActive = isActive === "true" || isActive === true;
     }
 
-    let query = [
-      {
-        $match: matchCondition,
-      },
+    // Build the query pipeline
+    let pipeline = [
+      { $match: matchCondition },
+      // Lookup vehicle information to populate details and do regex matches
       {
         $lookup: {
           from: "vehicles",
           localField: "vehicle_id",
           foreignField: "_id",
-          as: "vehicle",
+          as: "vehicle_details",
         },
       },
       {
         $unwind: {
-          path: "$vehicle",
+          path: "$vehicle_details",
           preserveNullAndEmptyArrays: true,
         },
       },
+      // Map registration number into root so we can sort and match easily
       {
-        $project: {
-          vehicle_id: 1,
-          vehicle_registration_number: "$vehicle.registration_number",
-          vehicle_name_model: "$vehicle.name_model",
-          expense_type: 1,
-          amount: 1,
-          date: 1,
-          fuel_liters: 1,
-          odometer_reading: 1,
-          description: 1,
-          receipt_image: 1,
-          isActive: 1,
-          createdAt: 1,
-        },
-      },
-      {
-        $facet: {
-          stage1: [
-            {
-              $group: {
-                _id: null,
-                count: { $sum: 1 },
-              },
-            },
-          ],
-          stage2: [{ $skip: skip || 0 }, { $limit: per_page || 10 }],
-        },
-      },
-      {
-        $unwind: {
-          path: "$stage1",
-          preserveNullAndEmptyArrays: true,
-        },
-      },
-      {
-        $project: {
-          count: { $ifNull: ["$stage1.count", 0] },
-          data: "$stage2",
+        $addFields: {
+          vehicle_registration_number: "$vehicle_details.registration_number",
         },
       },
     ];
 
     if (match) {
-      query = [
-        {
-          $match: {
-            $or: [
-              {
-                vehicle_registration_number: {
-                  $regex: match,
-                  $options: "i",
-                },
-              },
-              {
-                vehicle_name_model: {
-                  $regex: match,
-                  $options: "i",
-                },
-              },
-              {
-                expense_type: {
-                  $regex: match,
-                  $options: "i",
-                },
-              },
-              {
-                description: {
-                  $regex: match,
-                  $options: "i",
-                },
-              },
-            ],
-          },
+      pipeline.push({
+        $match: {
+          $or: [
+            { expense_type: { $regex: match, $options: "i" } },
+            { vehicle_registration_number: { $regex: match, $options: "i" } },
+            { description: { $regex: match, $options: "i" } },
+          ],
         },
-      ].concat(query);
+      });
     }
 
+    // Sorting
     if (sorton && sortdir) {
-      let sort = {};
+      const sort = {};
       sort[sorton] = sortdir === "desc" ? -1 : 1;
-      query = [{ $sort: sort }].concat(query);
+      pipeline.push({ $sort: sort });
     } else {
-      query = [{ $sort: { createdAt: -1 } }].concat(query);
+      pipeline.push({ $sort: { date: -1 } });
     }
 
-    const list = await Expense.aggregate(query);
-
-    return res.status(200).json({
-      isOk: true,
-      data: list,
-      status: 200,
+    pipeline.push({
+      $facet: {
+        stage1: [{ $group: { _id: null, count: { $sum: 1 } } }],
+        stage2: [{ $skip: skip }, { $limit: per_page }],
+      },
     });
-  } catch (error) {
-    console.error("Error in listExpensesByParams:", error);
-    return res.status(500).json({
-      isOk: false,
-      message: error.message,
-      status: 500,
-    });
-  }
-};
 
-export const getVehicleOperationalCosts = async (req, res) => {
-  try {
-    const list = await Vehicle.aggregate([
-      { $match: { isActive: true } },
-      {
-        $lookup: {
-          from: "expenses",
-          localField: "_id",
-          foreignField: "vehicle_id",
-          as: "expenses",
-        },
+    pipeline.push({ $unwind: "$stage1" });
+    pipeline.push({
+      $project: {
+        count: "$stage1.count",
+        data: "$stage2",
       },
-      {
-        $lookup: {
-          from: "maintenancelogs",
-          localField: "_id",
-          foreignField: "vehicle_id",
-          as: "maintenance_logs",
-        },
-      },
-      {
-        $project: {
-          registration_number: 1,
-          name_model: 1,
-          status: 1,
-          // Sum up fuel type expenses
-          fuel_cost: {
-            $sum: {
-              $map: {
-                input: {
-                  $filter: {
-                    input: "$expenses",
-                    as: "exp",
-                    cond: {
-                      $and: [
-                        { $eq: ["$$exp.expense_type", "Fuel"] },
-                        { $eq: ["$$exp.isActive", true] }
-                      ]
-                    },
-                  },
-                },
-                as: "item",
-                in: "$$item.amount",
-              },
-            },
-          },
-          // Sum up other type expenses (Tolls, Permits, Insurance, etc.)
-          other_cost: {
-            $sum: {
-              $map: {
-                input: {
-                  $filter: {
-                    input: "$expenses",
-                    as: "exp",
-                    cond: {
-                      $and: [
-                        { $ne: ["$$exp.expense_type", "Fuel"] },
-                        { $eq: ["$$exp.isActive", true] }
-                      ]
-                    },
-                  },
-                },
-                as: "item",
-                in: "$$item.amount",
-              },
-            },
-          },
-          // Sum up maintenance costs
-          maintenance_cost: {
-            $sum: {
-              $map: {
-                input: {
-                  $filter: {
-                    input: "$maintenance_logs",
-                    as: "m",
-                    cond: { $eq: ["$$m.isActive", true] }
-                  }
-                },
-                as: "item",
-                in: "$$item.cost"
-              }
-            },
-          },
-        },
-      },
-      {
-        $project: {
-          registration_number: 1,
-          name_model: 1,
-          status: 1,
-          fuel_cost: 1,
-          maintenance_cost: 1,
-          other_cost: 1,
-          total_operational_cost: {
-            $add: ["$fuel_cost", "$maintenance_cost", "$other_cost"],
-          },
-        },
-      },
-      {
-        $sort: { total_operational_cost: -1 },
-      }
-    ]);
+    });
+
+    const result = await Expense.aggregate(pipeline);
 
     res.status(200).json({
       isOk: true,
-      message: "Vehicle operational costs fetched successfully",
-      data: list,
+      status: 200,
+      data: result,
     });
   } catch (error) {
-    console.error("Error in getVehicleOperationalCosts:", error);
+    console.error("Error in listExpensesByParams:", error);
     res.status(500).json({
       isOk: false,
-      message: "Error fetching vehicle operational costs",
+      status: 500,
+      message: "Error fetching expense list",
       error: error.message,
     });
   }
@@ -492,18 +331,93 @@ export const getLatestFuelByVehicle = async (req, res) => {
       vehicle_id: vehicleId,
       expense_type: "Fuel",
       isActive: true,
-    }).sort({ date: -1, createdAt: -1 });
+    })
+      .sort({ date: -1, createdAt: -1 })
+      .lean();
 
     res.status(200).json({
       isOk: true,
-      message: "Latest fuel log fetched successfully",
+      status: 200,
       data: latestFuel,
     });
   } catch (error) {
     console.error("Error in getLatestFuelByVehicle:", error);
     res.status(500).json({
       isOk: false,
-      message: "Error fetching latest fuel log",
+      status: 500,
+      message: "Error fetching latest fuel details",
+      error: error.message,
+    });
+  }
+};
+
+export const getVehicleCosts = async (req, res) => {
+  try {
+    // 1. Get all vehicles
+    const vehicles = await Vehicle.find().lean();
+    const result = [];
+
+    for (const vehicle of vehicles) {
+      // 2. Aggregate Fuel Costs (expense_type = "Fuel")
+      const fuelCostAgg = await Expense.aggregate([
+        { $match: { vehicle_id: vehicle._id, expense_type: "Fuel", isActive: true } },
+        { 
+          $group: { 
+            _id: null, 
+            total: { $sum: "$amount" },
+            liters: { $sum: "$fuel_liters" }
+          } 
+        }
+      ]);
+      const fuel_cost = fuelCostAgg[0]?.total || 0;
+      const fuel_liters = fuelCostAgg[0]?.liters || 0;
+
+      // 3. Aggregate Other Costs (expense_type IN ["Toll", "Insurance", "Permit", "Other"])
+      const otherCostAgg = await Expense.aggregate([
+        { 
+          $match: { 
+            vehicle_id: vehicle._id, 
+            expense_type: { $in: ["Toll", "Insurance", "Permit", "Other"] }, 
+            isActive: true 
+          } 
+        },
+        { $group: { _id: null, total: { $sum: "$amount" } } }
+      ]);
+      const other_cost = otherCostAgg[0]?.total || 0;
+
+      // 4. Aggregate Maintenance Costs (Completed MaintenanceLogs)
+      const maintenanceCostAgg = await MaintenanceLog.aggregate([
+        { $match: { vehicle_id: vehicle._id, status: "Completed" } },
+        { $group: { _id: null, total: { $sum: "$cost" } } }
+      ]);
+      const maintenance_cost = maintenanceCostAgg[0]?.total || 0;
+
+      const total_operational_cost = fuel_cost + other_cost + maintenance_cost;
+
+      result.push({
+        _id: vehicle._id,
+        registration_number: vehicle.registration_number,
+        name_model: vehicle.name_model,
+        status: vehicle.status,
+        fuel_cost,
+        fuel_liters,
+        maintenance_cost,
+        other_cost,
+        total_operational_cost,
+      });
+    }
+
+    res.status(200).json({
+      isOk: true,
+      status: 200,
+      data: result,
+    });
+  } catch (error) {
+    console.error("Error in getVehicleCosts:", error);
+    res.status(500).json({
+      isOk: false,
+      status: 500,
+      message: "Error calculating vehicle costs summary",
       error: error.message,
     });
   }
