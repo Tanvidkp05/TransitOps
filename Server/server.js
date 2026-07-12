@@ -177,6 +177,14 @@ mongoose
     } catch (err) {
       console.error("❌ Error seeding vehicle types:", err);
     }
+
+    try {
+      const { seedExpiryReminderTemplates, initializeReminderWorker } = await import("./utils/reminderEmailWorker.js");
+      await seedExpiryReminderTemplates();
+      initializeReminderWorker();
+    } catch (err) {
+      console.error("❌ Error initializing reminder email worker:", err);
+    }
   })
   .catch((err) => {
     console.error("❌ DB Connection Error =>", err);

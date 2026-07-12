@@ -9,22 +9,30 @@ import {
   updateExpense,
   deleteExpense,
   listExpensesByParams,
-  getVehicleOperationalCosts,
   getLatestFuelByVehicle,
+  getVehicleCosts,
 } from "../../controllers/v1/expense.controller.js";
+import {
+  createExpenseValidation,
+  updateExpenseValidation,
+  searchValidation,
+  allowOnlyFields,
+  allowedExpenseFields,
+  allowedExpenseSearchFields,
+} from "../../middlewares/inputValidator.js";
 
 const router = express.Router();
 
-const expensesUploadDir = "uploads/expenses";
+const receiptsUploadDir = "uploads/receipts";
 
 // Ensure upload directory exists
-if (!fs.existsSync(expensesUploadDir)) {
-  fs.mkdirSync(expensesUploadDir, { recursive: true });
+if (!fs.existsSync(receiptsUploadDir)) {
+  fs.mkdirSync(receiptsUploadDir, { recursive: true });
 }
 
-// Secure upload middleware for receipt images
-const secureExpenseUpload = createSecureImageUpload({
-  destination: expensesUploadDir,
+// Secure upload middleware for expense receipt images
+const secureReceiptUpload = createSecureImageUpload({
+  destination: receiptsUploadDir,
   fieldName: "receipt_image",
   maxSize: 5 * 1024 * 1024, // 5MB limit
   compress: true,
@@ -36,7 +44,9 @@ const secureExpenseUpload = createSecureImageUpload({
 router.post(
   "/expenses",
   authMiddleware(["ADMIN", "EMPLOYEE"]),
-  secureExpenseUpload,
+  secureReceiptUpload,
+  allowOnlyFields(allowedExpenseFields),
+  createExpenseValidation,
   createExpense
 );
 
@@ -49,7 +59,7 @@ router.get(
 router.get(
   "/expenses/vehicle-costs",
   authMiddleware(["ADMIN", "EMPLOYEE"]),
-  getVehicleOperationalCosts
+  getVehicleCosts
 );
 
 router.get(
@@ -67,7 +77,9 @@ router.get(
 router.put(
   "/expenses/:expenseId",
   authMiddleware(["ADMIN", "EMPLOYEE"]),
-  secureExpenseUpload,
+  secureReceiptUpload,
+  allowOnlyFields(allowedExpenseFields),
+  updateExpenseValidation,
   updateExpense
 );
 
@@ -80,6 +92,8 @@ router.delete(
 router.post(
   "/expenses/search",
   authMiddleware(["ADMIN", "EMPLOYEE"]),
+  allowOnlyFields(allowedExpenseSearchFields),
+  searchValidation,
   listExpensesByParams
 );
 

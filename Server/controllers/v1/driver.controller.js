@@ -4,6 +4,7 @@ import Driver from "../../models/Driver.js";
 
 const DRIVER_SELECT = {
   name: 1,
+  email: 1,
   licenseNumber: 1,
   licenseCategory: 1,
   licenseExpiryDate: 1,
@@ -17,6 +18,7 @@ const DRIVER_SELECT = {
 
 const DRIVER_RESPONSE_FIELDS = [
   "name",
+  "email",
   "licenseNumber",
   "licenseCategory",
   "licenseExpiryDate",
@@ -73,10 +75,22 @@ const findDuplicateLicense = async (licenseNumber, excludeId = null) => {
   return Driver.findOne(query).lean();
 };
 
+const findDuplicateEmail = async (email, excludeId = null) => {
+  if (!email) return null;
+
+  const query = { email: email.trim().toLowerCase() };
+  if (excludeId) {
+    query._id = { $ne: excludeId };
+  }
+
+  return Driver.findOne(query).lean();
+};
+
 export const createDriver = async (req, res) => {
   try {
     const {
       name,
+      email,
       licenseNumber,
       licenseCategory,
       licenseExpiryDate,
@@ -85,6 +99,15 @@ export const createDriver = async (req, res) => {
       status,
       isActive,
     } = req.body;
+
+    const duplicateEmail = await findDuplicateEmail(email);
+    if (duplicateEmail) {
+      return res.status(409).json({
+        isOk: false,
+        status: 409,
+        message: "Driver with this email address already exists",
+      });
+    }
 
     const duplicate = await findDuplicateLicense(licenseNumber);
     if (duplicate) {
@@ -97,6 +120,7 @@ export const createDriver = async (req, res) => {
 
     const driver = await Driver.create({
       name,
+      email,
       licenseNumber,
       licenseCategory,
       licenseExpiryDate,
@@ -187,6 +211,7 @@ export const updateDriver = async (req, res) => {
 
     const updatableFields = [
       "name",
+      "email",
       "licenseNumber",
       "licenseCategory",
       "licenseExpiryDate",
@@ -203,6 +228,17 @@ export const updateDriver = async (req, res) => {
 
     if (req.body.isActive !== undefined) {
       driver.isActive = req.body.isActive === "true" || req.body.isActive === true;
+    }
+
+    if (req.body.email !== undefined) {
+      const duplicateEmail = await findDuplicateEmail(req.body.email, driverId);
+      if (duplicateEmail) {
+        return res.status(409).json({
+          isOk: false,
+          status: 409,
+          message: "Driver with this email address already exists",
+        });
+      }
     }
 
     if (req.body.licenseNumber !== undefined) {
@@ -290,6 +326,7 @@ export const listDriversByParams = async (req, res) => {
         $match: {
           $or: [
             { name: { $regex: match, $options: "i" } },
+            { email: { $regex: match, $options: "i" } },
             { licenseNumber: { $regex: match, $options: "i" } },
             { licenseCategory: { $regex: match, $options: "i" } },
             { contactNumber: { $regex: match, $options: "i" } },

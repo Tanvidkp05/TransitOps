@@ -299,6 +299,12 @@ export const createCompanyValidation = [
  */
 export const createDriverValidation = [
     nameValidator('name'),
+    body('email')
+        .trim()
+        .notEmpty().withMessage('Email is required')
+        .isEmail().withMessage('Please provide a valid email address')
+        .isLength({ max: MAX_LENGTHS.EMAIL }).withMessage(`Email must not exceed ${MAX_LENGTHS.EMAIL} characters`)
+        .normalizeEmail(),
     body('licenseNumber')
         .trim()
         .notEmpty().withMessage('licenseNumber is required')
@@ -336,6 +342,12 @@ export const updateDriverValidation = [
         .isLength({ min: MIN_LENGTHS.NAME, max: MAX_LENGTHS.NAME })
         .withMessage(`name must be between ${MIN_LENGTHS.NAME} and ${MAX_LENGTHS.NAME} characters`)
         .customSanitizer(sanitizeString),
+    body('email')
+        .optional()
+        .trim()
+        .isEmail().withMessage('Please provide a valid email address')
+        .isLength({ max: MAX_LENGTHS.EMAIL }).withMessage(`Email must not exceed ${MAX_LENGTHS.EMAIL} characters`)
+        .normalizeEmail(),
     body('licenseNumber')
         .optional()
         .trim()
@@ -541,7 +553,7 @@ export const allowedCompanyFields = [
 ];
 
 export const allowedDriverFields = [
-    'name', 'licenseNumber', 'licenseCategory', 'licenseExpiryDate',
+    'name', 'email', 'licenseNumber', 'licenseCategory', 'licenseExpiryDate',
     'contactNumber', 'safetyScore', 'status', 'isActive'
 ];
 
@@ -556,6 +568,75 @@ export const allowedTripFields = [
 
 export const allowedTripSearchFields = [
     'skip', 'per_page', 'sorton', 'sortdir', 'match', 'isActive', 'status', 'vehicle_id', 'driver_id'
+];
+
+export const createExpenseValidation = [
+    body('vehicle_id')
+        .notEmpty().withMessage('Vehicle is required')
+        .isMongoId().withMessage('Vehicle must be a valid Mongo ID'),
+    body('expense_type')
+        .notEmpty().withMessage('Expense type is required')
+        .isIn(['Fuel', 'Toll', 'Insurance', 'Permit', 'Other']).withMessage('Invalid expense type'),
+    body('amount')
+        .notEmpty().withMessage('Amount is required')
+        .isFloat({ min: 0.01 }).withMessage('Amount must be a positive number')
+        .toFloat(),
+    body('date')
+        .notEmpty().withMessage('Date is required')
+        .isISO8601().withMessage('Date must be a valid ISO8601 date'),
+    body('fuel_liters')
+        .optional({ checkFalsy: true })
+        .isFloat({ min: 0.01 }).withMessage('Fuel liters must be a positive number')
+        .toFloat(),
+    body('odometer_reading')
+        .optional({ checkFalsy: true })
+        .isFloat({ min: 0 }).withMessage('Odometer reading must be a non-negative number')
+        .toFloat(),
+    body('description')
+        .optional()
+        .trim()
+        .isLength({ max: 1000 }).withMessage('Description must not exceed 1000 characters')
+        .customSanitizer(sanitizeString),
+    handleValidationErrors,
+];
+
+export const updateExpenseValidation = [
+    body('vehicle_id')
+        .optional()
+        .isMongoId().withMessage('Vehicle must be a valid Mongo ID'),
+    body('expense_type')
+        .optional()
+        .isIn(['Fuel', 'Toll', 'Insurance', 'Permit', 'Other']).withMessage('Invalid expense type'),
+    body('amount')
+        .optional()
+        .isFloat({ min: 0.01 }).withMessage('Amount must be a positive number')
+        .toFloat(),
+    body('date')
+        .optional()
+        .isISO8601().withMessage('Date must be a valid ISO8601 date'),
+    body('fuel_liters')
+        .optional({ checkFalsy: true })
+        .isFloat({ min: 0.01 }).withMessage('Fuel liters must be a positive number')
+        .toFloat(),
+    body('odometer_reading')
+        .optional({ checkFalsy: true })
+        .isFloat({ min: 0 }).withMessage('Odometer reading must be a non-negative number')
+        .toFloat(),
+    body('description')
+        .optional()
+        .trim()
+        .isLength({ max: 1000 }).withMessage('Description must not exceed 1000 characters')
+        .customSanitizer(sanitizeString),
+    handleValidationErrors,
+];
+
+export const allowedExpenseFields = [
+    'vehicle_id', 'expense_type', 'amount', 'date', 'fuel_liters',
+    'odometer_reading', 'description', 'isActive', 'removeImage'
+];
+
+export const allowedExpenseSearchFields = [
+    'skip', 'per_page', 'sorton', 'sortdir', 'match', 'isActive', 'expense_type', 'vehicle_id'
 ];
 
 export default {
@@ -581,4 +662,8 @@ export default {
     cancelTripValidation,
     allowedTripFields,
     allowedTripSearchFields,
+    createExpenseValidation,
+    updateExpenseValidation,
+    allowedExpenseFields,
+    allowedExpenseSearchFields,
 };
