@@ -129,6 +129,13 @@ export const ENDPOINTS = {
         BY_ID: (id) => `${V1}/employee-roles/${id}`,
     },
 
+    // Vehicles endpoints
+    VEHICLES: {
+        BASE: `${V1}/vehicles`,
+        BY_ID: (id) => `${V1}/vehicles/${id}`,
+        SEARCH: `${V1}/vehicles/search`,
+    },
+
     // Admin endpoints
     ADMIN: {
         LOGIN_ATTEMPTS: `${V1}/admin/auth/login-attempts`,
