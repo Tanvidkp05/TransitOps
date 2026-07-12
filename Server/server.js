@@ -196,6 +196,7 @@ import menusRoutes from "./routes/v1/menus.routes.js";
 import rolesRoutes from "./routes/v1/roles.routes.js";
 import otpRoutes from "./routes/v1/otp.routes.js";
 import vehiclesRoutes from "./routes/v1/vehicles.routes.js";
+import maintenanceLogsRoutes from "./routes/v1/maintenanceLogs.routes.js";
 
 app.use("/api/v1", companiesRoutes);
 app.use("/api/v1", currenciesRoutes);
@@ -208,6 +209,7 @@ app.use("/api/v1", locationsRoutes);
 app.use("/api/v1", menusRoutes);
 app.use("/api/v1", rolesRoutes);
 app.use("/api/v1", vehiclesRoutes);
+app.use("/api/v1", maintenanceLogsRoutes);
 app.use("/api/v1/otp", otpRoutes);
 
 console.log("✅ V1 API routes loaded");
