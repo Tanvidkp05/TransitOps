@@ -43,6 +43,14 @@ export const createMaintenanceLog = async (req, res) => {
       });
     }
 
+    if (vehicle.status === "On Trip") {
+      if (req.file) deleteFileSafe(req.file.path);
+      return res.status(409).json({
+        isOk: false,
+        message: "Cannot create maintenance log for a vehicle currently On Trip",
+      });
+    }
+
     const imagePath = req.file ? req.file.path.replace(/\\/g, "/") : "";
 
     // Create Maintenance Log

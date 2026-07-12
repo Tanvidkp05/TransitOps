@@ -184,7 +184,7 @@ export const paginationValidators = [
         .toInt(),
     body('per_page')
         .optional({ checkFalsy: true })
-        .isInt({ min: 1, max: 100 }).withMessage('per_page must be between 1 and 100')
+        .isInt({ min: 1, max: 1000 }).withMessage('per_page must be between 1 and 1000')
         .toInt(),
     body('sorton')
         .optional({ checkFalsy: true })
@@ -408,6 +408,92 @@ export const searchValidation = [
     handleValidationErrors,
 ];
 
+/**
+ * Trip validations
+ */
+export const createTripValidation = [
+    body('source')
+        .trim()
+        .notEmpty().withMessage('Source is required')
+        .isLength({ max: 255 }).withMessage('Source must not exceed 255 characters')
+        .customSanitizer(sanitizeString),
+    body('destination')
+        .trim()
+        .notEmpty().withMessage('Destination is required')
+        .isLength({ max: 255 }).withMessage('Destination must not exceed 255 characters')
+        .customSanitizer(sanitizeString),
+    mongoIdValidator('vehicle_id', 'body'),
+    mongoIdValidator('driver_id', 'body'),
+    body('cargo_weight')
+        .notEmpty().withMessage('Cargo weight is required')
+        .isFloat({ min: 0 }).withMessage('Cargo weight must be a non-negative number')
+        .toFloat(),
+    body('planned_distance')
+        .notEmpty().withMessage('Planned distance is required')
+        .isFloat({ min: 0 }).withMessage('Planned distance must be a non-negative number')
+        .toFloat(),
+    body('notes')
+        .optional()
+        .trim()
+        .isLength({ max: 1000 }).withMessage('Notes must not exceed 1000 characters')
+        .customSanitizer(sanitizeString),
+    handleValidationErrors,
+];
+
+export const updateTripValidation = [
+    body('source')
+        .optional()
+        .trim()
+        .isLength({ max: 255 }).withMessage('Source must not exceed 255 characters')
+        .customSanitizer(sanitizeString),
+    body('destination')
+        .optional()
+        .trim()
+        .isLength({ max: 255 }).withMessage('Destination must not exceed 255 characters')
+        .customSanitizer(sanitizeString),
+    body('vehicle_id')
+        .optional()
+        .isMongoId().withMessage('vehicle_id must be a valid ID'),
+    body('driver_id')
+        .optional()
+        .isMongoId().withMessage('driver_id must be a valid ID'),
+    body('cargo_weight')
+        .optional()
+        .isFloat({ min: 0 }).withMessage('Cargo weight must be a non-negative number')
+        .toFloat(),
+    body('planned_distance')
+        .optional()
+        .isFloat({ min: 0 }).withMessage('Planned distance must be a non-negative number')
+        .toFloat(),
+    body('notes')
+        .optional()
+        .trim()
+        .isLength({ max: 1000 }).withMessage('Notes must not exceed 1000 characters')
+        .customSanitizer(sanitizeString),
+    handleValidationErrors,
+];
+
+export const completeTripValidation = [
+    body('final_odometer')
+        .notEmpty().withMessage('Final odometer is required')
+        .isFloat({ min: 0 }).withMessage('Final odometer must be a non-negative number')
+        .toFloat(),
+    body('fuel_consumed')
+        .optional({ checkFalsy: true })
+        .isFloat({ min: 0 }).withMessage('Fuel consumed must be a non-negative number')
+        .toFloat(),
+    handleValidationErrors,
+];
+
+export const cancelTripValidation = [
+    body('cancellation_reason')
+        .optional()
+        .trim()
+        .isLength({ max: 1000 }).withMessage('Cancellation reason must not exceed 1000 characters')
+        .customSanitizer(sanitizeString),
+    handleValidationErrors,
+];
+
 // ============ MIDDLEWARE TO REJECT UNEXPECTED FIELDS ============
 
 /**
@@ -463,6 +549,15 @@ export const allowedSearchFields = [
     'skip', 'per_page', 'sorton', 'sortdir', 'match', 'isActive', 'status'
 ];
 
+export const allowedTripFields = [
+    'source', 'destination', 'vehicle_id', 'driver_id', 'cargo_weight',
+    'planned_distance', 'notes', 'status', 'isActive'
+];
+
+export const allowedTripSearchFields = [
+    'skip', 'per_page', 'sorton', 'sortdir', 'match', 'isActive', 'status', 'vehicle_id', 'driver_id'
+];
+
 export default {
     handleValidationErrors,
     mongoSanitizer,
@@ -480,4 +575,10 @@ export default {
     allowedCompanyFields,
     allowedDriverFields,
     allowedSearchFields,
+    createTripValidation,
+    updateTripValidation,
+    completeTripValidation,
+    cancelTripValidation,
+    allowedTripFields,
+    allowedTripSearchFields,
 };
