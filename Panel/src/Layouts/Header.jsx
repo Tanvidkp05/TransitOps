@@ -1,6 +1,7 @@
 import React from "react";
 import ProfileDropdown from "../Components/Common/ProfileDropdown";
 import UniversalSearch from "../Components/Common/UniversalSearch";
+import LightDark from "../Components/Common/LightDark";
 
 const Header = ({ onChangeLayoutMode, layoutModeType, headerClass }) => {
     const toogleMenuBtn = () => {
@@ -108,7 +109,11 @@ const Header = ({ onChangeLayoutMode, layoutModeType, headerClass }) => {
                         </div>
 
                         <UniversalSearch />
-                        <div className="d-flex align-items-center">
+                        <div className="d-flex align-items-center gap-2">
+                            <LightDark
+                                layoutMode={layoutModeType}
+                                onChangeLayoutMode={onChangeLayoutMode}
+                            />
                             <ProfileDropdown />
                         </div>
                     </div>
