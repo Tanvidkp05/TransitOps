@@ -19,6 +19,7 @@ import { toast } from "react-toastify";
 import Select from "react-select";
 import { AuthContext } from "../../context/AuthContext";
 import { MenuContext } from "../../context/MenuContext";
+import VehicleDocumentsSection from "./VehicleDocumentsSection";
 import config from "../../config";
 import {
     createVehicle,
@@ -871,6 +872,13 @@ const Vehicle = () => {
                                     </Card>
                                 </Col>
                             </Row>
+                    {view === "EDIT" && editId && (
+                        <Row>
+                            <Col lg={12}>
+                                <VehicleDocumentsSection vehicleId={editId} />
+                            </Col>
+                        </Row>
+                    )}
                         </>
                     )}
                 </Container>

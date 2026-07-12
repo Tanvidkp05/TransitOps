@@ -22,6 +22,7 @@ import Vehicle from "../pages/Master/Vehicle";
 import VehicleType from "../pages/Master/VehicleType";
 import MaintenanceLog from "../pages/Master/MaintenanceLog";
 import TripManagement from "../pages/Master/TripManagement";
+import VehicleDocuments from "../pages/Master/VehicleDocuments";
 import ExpenseManagement from "../pages/Master/ExpenseManagement";
 import Analytics from "../pages/Master/Analytics";
 
@@ -45,6 +46,7 @@ const authProtectedRoutes = [
     { path: "/driver-master", component: <DriverMaster /> },
     { path: "/login-attempt-logs", component: <LoginAttemptLogs /> },
     { path: "/vehicle", component: <Vehicle /> },
+    { path: "/vehicle-documents", component: <VehicleDocuments /> },
     { path: "/vehicle-type", component: <VehicleType /> },
     { path: "/maintenance-log", component: <MaintenanceLog /> },
     { path: "/trip-management", component: <TripManagement /> },
