@@ -494,7 +494,7 @@ Do you want to continue?`;
         setForgotPasswordEmail("");
         setOtp("");
         setNewPassword("");
-        setConfirmPassword("");
+        setConfirmPassword("") ;
     };
 
     document.title = `Sign in | TransitOps`;
