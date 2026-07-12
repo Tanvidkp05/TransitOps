@@ -24,8 +24,10 @@ const Layout = (props) => {
         // Apply theme directly to document
         if (value === "dark") {
             document.documentElement.setAttribute("data-layout-mode", "dark");
+            document.documentElement.setAttribute("data-sidebar", "dark");
         } else {
             document.documentElement.setAttribute("data-layout-mode", "light");
+            document.documentElement.setAttribute("data-sidebar", "dark");
         }
     };
 
@@ -37,6 +39,7 @@ const Layout = (props) => {
         document.documentElement.setAttribute("data-layout", "vertical");
         // Apply saved theme on mount
         document.documentElement.setAttribute("data-layout-mode", layoutModeType);
+        document.documentElement.setAttribute("data-sidebar", "dark");
         console.log("Layout set to vertical");
     }, [layoutModeType]);
 
