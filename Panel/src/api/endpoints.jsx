@@ -136,6 +136,14 @@ export const ENDPOINTS = {
         SEARCH: `${V1}/vehicles/search`,
     },
 
+    // Vehicle Documents endpoints
+    VEHICLE_DOCUMENTS: {
+        BASE: `${V1}/vehicle-documents`,
+        BY_ID: (id) => `${V1}/vehicle-documents/${id}`,
+        BY_VEHICLE: (vehicleId) => `${V1}/vehicle-documents/vehicle/${vehicleId}`,
+        DOWNLOAD: (id) => `${V1}/vehicle-documents/${id}/download`,
+    },
+
     // Vehicle Types endpoints
     VEHICLE_TYPES: {
         BASE: `${V1}/vehicle-types`,
