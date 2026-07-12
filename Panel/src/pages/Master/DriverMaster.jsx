@@ -1,510 +1,651 @@
-import React, { useContext, useEffect, useMemo, useState } from "react";
+import React, { useState, useEffect, useContext } from "react";
 import {
-  Button,
-  Card,
-  CardBody,
-  CardHeader,
-  Col,
-  Container,
-  Form,
-  Input,
-  Label,
-  Row,
+    Button,
+    Card,
+    CardBody,
+    CardHeader,
+    Col,
+    Container,
+    Label,
+    Input,
+    Row,
+    FormGroup,
 } from "reactstrap";
 import DataTable from "react-data-table-component";
-import Select from "react-select";
-import { toast } from "react-toastify";
 import BreadCrumb from "../../Components/Common/BreadCrumb";
-import FormsFooter from "../../Components/Common/FormAddFooter";
-import FormUpdateFooter from "../../Components/Common/FormUpdateFooter";
+import DeleteModal from "../../Components/Common/DeleteModal";
+import FormsHeader from "../../Components/Common/FormsModalHeader";
+import { toast } from "react-toastify";
+import Select from "react-select";
 import { AuthContext } from "../../context/AuthContext";
 import { MenuContext } from "../../context/MenuContext";
 import {
-  createDriver,
-  deleteDriver,
-  getDriverById,
-  searchDrivers,
-  updateDriver,
+    createDriver,
+    deleteDriver,
+    getDriverById,
+    updateDriver,
+    searchDrivers,
 } from "../../api/drivers.api";
 
-const statusOptions = [
-  { value: "Available", label: "Available" },
-  { value: "On Trip", label: "On Trip" },
-  { value: "Off Duty", label: "Off Duty" },
-  { value: "Suspended", label: "Suspended" },
-];
-
 const initialState = {
-  name: "",
-  licenseNumber: "",
-  licenseCategory: "",
-  licenseExpiryDate: "",
-  contactNumber: "",
-  safetyScore: "",
-  status: "Available",
+    name: "",
+    licenseNumber: "",
+    licenseCategory: "",
+    licenseExpiryDate: "",
+    contactNumber: "",
+    safetyScore: "",
+    status: "Available",
+    isActive: true,
 };
 
+const statusOptions = [
+    { value: "Available", label: "Available" },
+    { value: "On Trip", label: "On Trip" },
+    { value: "Off Duty", label: "Off Duty" },
+    { value: "Suspended", label: "Suspended" },
+];
+
 const DriverMaster = () => {
-  const { adminData } = useContext(AuthContext);
-  const { currentPagePermissions } = useContext(MenuContext);
+    const { adminData } = useContext(AuthContext);
+    const { currentPagePermissions } = useContext(MenuContext);
 
-  const [values, setValues] = useState(initialState);
-  const [formErrors, setFormErrors] = useState({});
-  const [isSubmit, setIsSubmit] = useState(false);
-  const [showForm, setShowForm] = useState(false);
-  const [updateForm, setUpdateForm] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isDeleteLoading, setIsDeleteLoading] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [data, setData] = useState([]);
-  const [totalRows, setTotalRows] = useState(0);
-  const [perPage, setPerPage] = useState(10);
-  const [pageNo, setPageNo] = useState(1);
-  const [column, setColumn] = useState("createdAt");
-  const [sortDirection, setSortDirection] = useState("desc");
-  const [query, setQuery] = useState("");
-  const [selectedStatusFilter, setSelectedStatusFilter] = useState(null);
-  const [_id, set_Id] = useState("");
-  const [remove_id, setRemove_id] = useState("");
+    const [view, setView] = useState("LIST"); // "LIST", "ADD", "EDIT"
+    const [values, setValues] = useState(initialState);
+    const [formErrors, setFormErrors] = useState({});
+    const [isSubmit, setIsSubmit] = useState(false);
+    const [filter, setFilter] = useState(true);
 
-  const statusValue = useMemo(() => {
-    return statusOptions.find((item) => item.value === values.status) || null;
-  }, [values.status]);
+    const [isLoading, setIsLoading] = useState(false);
+    const [isDeleteLoading, setIsDeleteLoading] = useState(false);
+    const [isPageLoading, setIsPageLoading] = useState(false);
 
-  const validate = (currentValues) => {
-    const errors = {};
+    const [drivers, setDrivers] = useState([]);
+    const [query, setQuery] = useState("");
+    const [editId, setEditId] = useState("");
+    const [removeId, setRemoveId] = useState("");
+    const [modalDelete, setModalDelete] = useState(false);
 
-    if (!currentValues.name.trim()) errors.name = "Name is required";
-    if (!currentValues.licenseNumber.trim()) errors.licenseNumber = "License Number is required";
-    if (!currentValues.licenseCategory.trim()) errors.licenseCategory = "License Category is required";
-    if (!currentValues.licenseExpiryDate) errors.licenseExpiryDate = "License Expiry Date is required";
-    if (!currentValues.contactNumber.trim()) errors.contactNumber = "Contact Number is required";
-    if (currentValues.safetyScore === "" || currentValues.safetyScore === null || currentValues.safetyScore === undefined) {
-      errors.safetyScore = "Safety Score is required";
-    } else if (Number.isNaN(Number(currentValues.safetyScore)) || Number(currentValues.safetyScore) < 0 || Number(currentValues.safetyScore) > 100) {
-      errors.safetyScore = "Safety Score must be between 0 and 100";
-    }
+    // Datatable states
+    const [totalRows, setTotalRows] = useState(0);
+    const [perPage, setPerPage] = useState(100);
+    const [pageNo, setPageNo] = useState(1);
+    const [sortColumn, setSortColumn] = useState("createdAt");
+    const [sortDirection, setSortDirection] = useState("desc");
 
-    if (!currentValues.status) errors.status = "Status is required";
+    const fetchDriversList = async () => {
+        setIsPageLoading(true);
+        let skip = (pageNo - 1) * perPage;
+        if (skip < 0) {
+            skip = 0;
+        }
 
-    return errors;
-  };
+        try {
+            const response = await searchDrivers({
+                skip: skip,
+                per_page: perPage,
+                sorton: sortColumn,
+                sortdir: sortDirection,
+                match: query,
+                isActive: filter,
+            });
 
-  const resetForm = () => {
-    setValues(initialState);
-    setSelectedStatus(null);
-    setFormErrors({});
-    setIsSubmit(false);
-    setShowForm(false);
-    setUpdateForm(false);
-    set_Id("");
-  };
+            if (response.data?.data?.length > 0) {
+                const res = response.data.data[0];
+                setDrivers(res.data || []);
+                setTotalRows(res.count || 0);
+            } else {
+                setDrivers([]);
+                setTotalRows(0);
+            }
+        } catch (error) {
+            console.error("Error fetching drivers list:", error);
+            setDrivers([]);
+            setTotalRows(0);
+            toast.error("Failed to fetch drivers list");
+        } finally {
+            setIsPageLoading(false);
+        }
+    };
 
-  const fetchDrivers = async () => {
-    try {
-      setLoading(true);
-      const skip = (pageNo - 1) * perPage;
-      const response = await searchDrivers({
-        skip,
-        per_page: perPage,
-        sorton: column,
-        sortdir: sortDirection,
-        match: query,
-        status: selectedStatusFilter?.value || "",
-      });
+    useEffect(() => {
+        if (view === "LIST") {
+            fetchDriversList();
+        }
+    }, [pageNo, perPage, sortColumn, sortDirection, query, filter, view]);
 
-      const result = response.data?.data?.[0] || { count: 0, data: [] };
-      setTotalRows(result.count || 0);
-      setData(result.data || []);
-    } catch (error) {
-      console.error(error);
-      toast.error("Failed to load drivers");
-    } finally {
-      setLoading(false);
-    }
-  };
+    const handleSort = (column, direction) => {
+        setSortColumn(column.sortField);
+        setSortDirection(direction);
+    };
 
-  useEffect(() => {
-    fetchDrivers();
-  }, [pageNo, perPage, column, sortDirection, query, selectedStatusFilter]);
+    const handlePageChange = (page) => {
+        setPageNo(page);
+    };
 
-  const handleSort = (sortedColumn, direction) => {
-    setColumn(sortedColumn.sortField || "createdAt");
-    setSortDirection(direction);
-  };
+    const handlePerRowsChange = async (newPerPage) => {
+        setPerPage(newPerPage);
+    };
 
-  const handlePageChange = (page) => setPageNo(page);
-  const handlePerRowsChange = (newPerPage, page) => {
-    setPerPage(newPerPage);
-    setPageNo(page);
-  };
+    const handleFilter = (e) => {
+        setPageNo(1);
+        setFilter(e.target.checked);
+    };
 
-  const handleChange = (e) => {
-    setValues({ ...values, [e.target.name]: e.target.value });
-  };
+    const handleAddClick = () => {
+        setValues(initialState);
+        setFormErrors({});
+        setIsSubmit(false);
+        setView("ADD");
+    };
 
-  const handleStatusChange = (selectedOption) => {
-    setValues({ ...values, status: selectedOption?.value || "" });
-  };
+    const handleEditClick = (id) => {
+        setEditId(id);
+        setIsLoading(true);
+        getDriverById(id)
+            .then((res) => {
+                if (res.data?.data) {
+                    const data = res.data.data;
+                    setValues({
+                        name: data.name,
+                        licenseNumber: data.licenseNumber,
+                        licenseCategory: data.licenseCategory,
+                        licenseExpiryDate: data.licenseExpiryDate ? new Date(data.licenseExpiryDate).toISOString().split("T")[0] : "",
+                        contactNumber: data.contactNumber,
+                        safetyScore: data.safetyScore ?? "",
+                        status: data.status,
+                        isActive: data.isActive !== undefined ? data.isActive : true,
+                    });
+                    setFormErrors({});
+                    setIsSubmit(false);
+                    setView("EDIT");
+                }
+            })
+            .catch((err) => {
+                console.error("Error fetching driver details:", err);
+                toast.error("Failed to load driver details");
+            })
+            .finally(() => {
+                setIsLoading(false);
+            });
+    };
 
-  const handleAdd = () => {
-    resetForm();
-    setShowForm(true);
-  };
+    const handleCancelClick = () => {
+        setView("LIST");
+        setValues(initialState);
+        setFormErrors({});
+        setIsSubmit(false);
+    };
 
-  const handleCancel = () => {
-    resetForm();
-  };
+    const handleChange = (e) => {
+        const { name, value } = e.target;
+        setValues({ ...values, [name]: value });
+    };
 
-  const handleEdit = async (driverId) => {
-    try {
-      setIsLoading(true);
-      const response = await getDriverById(driverId);
-      const driver = response.data.data;
-      set_Id(driverId);
-      setValues({
-        name: driver.name || "",
-        licenseNumber: driver.licenseNumber || "",
-        licenseCategory: driver.licenseCategory || "",
-        licenseExpiryDate: driver.licenseExpiryDate ? new Date(driver.licenseExpiryDate).toISOString().split("T")[0] : "",
-        contactNumber: driver.contactNumber || "",
-        safetyScore: driver.safetyScore ?? "",
-        status: driver.status || "Available",
-      });
-      setUpdateForm(true);
-      setShowForm(false);
-    } catch (error) {
-      console.error(error);
-      toast.error("Failed to fetch driver details");
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    const handleCheck = (e) => {
+        const { name, checked } = e.target;
+        setValues({ ...values, [name]: checked });
+    };
 
-  const handleDelete = async (driverId) => {
-    try {
-      setIsDeleteLoading(true);
-      await deleteDriver(driverId);
-      toast.success("Driver deleted successfully");
-      fetchDrivers();
-    } catch (error) {
-      console.error(error);
-      toast.error(error.response?.data?.message || "Failed to delete driver");
-    } finally {
-      setIsDeleteLoading(false);
-    }
-  };
+    const validate = (fields) => {
+        const errors = {};
+        if (!fields.name.trim()) {
+            errors.name = "Driver name is required";
+        }
+        if (!fields.licenseNumber.trim()) {
+            errors.licenseNumber = "License number is required";
+        }
+        if (!fields.licenseCategory.trim()) {
+            errors.licenseCategory = "License category is required";
+        }
+        if (!fields.licenseExpiryDate) {
+            errors.licenseExpiryDate = "License expiry date is required";
+        }
+        if (!fields.contactNumber.trim()) {
+            errors.contactNumber = "Contact number is required";
+        }
+        if (fields.safetyScore === "" || isNaN(fields.safetyScore)) {
+            errors.safetyScore = "Safety score is required and must be a number";
+        } else {
+            const score = Number(fields.safetyScore);
+            if (score < 0 || score > 100) {
+                errors.safetyScore = "Safety score must be between 0 and 100";
+            }
+        }
+        return errors;
+    };
 
-  const confirmDelete = async (driverId) => {
-    if (!window.confirm("Are you sure you want to delete this driver?")) {
-      return;
-    }
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        const errors = validate(values);
+        setFormErrors(errors);
+        setIsSubmit(true);
 
-    setRemove_id(driverId);
-    await handleDelete(driverId);
-    setRemove_id("");
-  };
+        if (Object.keys(errors).length === 0) {
+            setIsLoading(true);
+            const payload = {
+                ...values,
+                name: values.name.trim(),
+                licenseNumber: values.licenseNumber.trim(),
+                licenseCategory: values.licenseCategory.trim(),
+                contactNumber: values.contactNumber.trim(),
+                safetyScore: Number(values.safetyScore),
+            };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    const errors = validate(values);
-    setFormErrors(errors);
-    setIsSubmit(true);
+            if (view === "ADD") {
+                createDriver(payload)
+                    .then((res) => {
+                        if (res.data?.isOk) {
+                            toast.success("Driver Added Successfully!");
+                            setView("LIST");
+                            setValues(initialState);
+                        } else {
+                            toast.error(res.data?.message || "Failed to add driver");
+                        }
+                    })
+                    .catch((err) => {
+                        console.error("Error creating driver:", err);
+                        toast.error(err.response?.data?.message || "Failed to add driver");
+                    })
+                    .finally(() => {
+                        setIsLoading(false);
+                    });
+            } else if (view === "EDIT") {
+                updateDriver(editId, payload)
+                    .then((res) => {
+                        if (res.data?.isOk) {
+                            toast.success("Driver Updated Successfully!");
+                            setView("LIST");
+                            setValues(initialState);
+                        } else {
+                            toast.error(res.data?.message || "Failed to update driver");
+                        }
+                    })
+                    .catch((err) => {
+                        console.error("Error updating driver:", err);
+                        toast.error(err.response?.data?.message || "Failed to update driver");
+                    })
+                    .finally(() => {
+                        setIsLoading(false);
+                    });
+            }
+        }
+    };
 
-    if (Object.keys(errors).length > 0) return;
+    const handleDeleteClick = (id) => {
+        setRemoveId(id);
+        setModalDelete(true);
+    };
 
-    try {
-      setIsLoading(true);
-      const payload = {
-        ...values,
-        safetyScore: Number(values.safetyScore),
-      };
+    const confirmDelete = (e) => {
+        e.preventDefault();
+        setIsDeleteLoading(true);
+        deleteDriver(removeId)
+            .then(() => {
+                setModalDelete(false);
+                toast.success("Driver Removed Successfully!");
+                fetchDriversList();
+            })
+            .catch((err) => {
+                console.error("Error deleting driver:", err);
+                toast.error("Failed to remove driver");
+            })
+            .finally(() => {
+                setIsDeleteLoading(false);
+            });
+    };
 
-      if (updateForm) {
-        await updateDriver(_id, payload);
-        toast.success("Driver updated successfully");
-      } else {
-        await createDriver(payload);
-        toast.success("Driver created successfully");
-      }
+    const col = [
+        {
+            name: "Sr No",
+            selector: (row, index) => index + 1,
+            sortable: false,
+            maxWidth: "20px",
+        },
+        {
+            name: "Name",
+            selector: (row) => row.name,
+            sortable: true,
+            sortField: "name",
+            minWidth: "130px",
+        },
+        {
+            name: "License Number",
+            selector: (row) => row.licenseNumber,
+            sortable: true,
+            sortField: "licenseNumber",
+            minWidth: "130px",
+        },
+        {
+            name: "Category",
+            selector: (row) => row.licenseCategory,
+            sortable: true,
+            sortField: "licenseCategory",
+            minWidth: "100px",
+        },
+        {
+            name: "Expiry Date",
+            selector: (row) => new Date(row.licenseExpiryDate).toLocaleDateString(),
+            sortable: true,
+            sortField: "licenseExpiryDate",
+            minWidth: "120px",
+        },
+        {
+            name: "Contact",
+            selector: (row) => row.contactNumber,
+            sortable: true,
+            sortField: "contactNumber",
+            minWidth: "120px",
+        },
+        {
+            name: "Safety Score",
+            selector: (row) => `${row.safetyScore}/100`,
+            sortable: true,
+            sortField: "safetyScore",
+            minWidth: "110px",
+        },
+        {
+            name: "Status",
+            selector: (row) => {
+                let badgeClass = "badge bg-info-subtle text-info";
+                if (row.status === "Available") badgeClass = "badge bg-success-subtle text-success";
+                else if (row.status === "On Trip") badgeClass = "badge bg-primary-subtle text-primary";
+                else if (row.status === "Off Duty") badgeClass = "badge bg-secondary-subtle text-secondary";
+                else if (row.status === "Suspended") badgeClass = "badge bg-danger-subtle text-danger";
 
-      resetForm();
-      fetchDrivers();
-    } catch (error) {
-      console.error(error);
-      toast.error(error.response?.data?.message || "Failed to save driver");
-    } finally {
-      setIsLoading(false);
-    }
-  };
+                return <span className={badgeClass}>{row.status}</span>;
+            },
+            minWidth: "100px",
+        },
+        {
+            name: "Action",
+            selector: (row) => {
+                return (
+                    <React.Fragment>
+                        <div className="d-flex gap-2">
+                            <div className="edit">
+                                {currentPagePermissions?.edit && (
+                                    <button
+                                        className="btn btn-sm btn-success edit-item-btn"
+                                        onClick={() => handleEditClick(row._id)}
+                                    >
+                                        Edit
+                                    </button>
+                                )}
+                            </div>
+                            <div className="remove">
+                                {currentPagePermissions?.delete && (
+                                    <button
+                                        className="btn btn-sm btn-danger remove-item-btn"
+                                        onClick={() => handleDeleteClick(row._id)}
+                                    >
+                                        Remove
+                                    </button>
+                                )}
+                            </div>
+                            {!currentPagePermissions?.edit && !currentPagePermissions?.delete && (
+                                <span className="text-muted">No actions</span>
+                            )}
+                        </div>
+                    </React.Fragment>
+                );
+            },
+            sortable: false,
+            minWidth: "140px",
+        },
+    ];
 
-  const columns = [
-    {
-      name: "Sr No",
-      selector: (_row, index) => index + 1,
-      sortable: false,
-      width: "80px",
-    },
-    {
-      name: "Name",
-      selector: (row) => row.name,
-      sortable: true,
-      sortField: "name",
-    },
-    {
-      name: "License Number",
-      selector: (row) => row.licenseNumber,
-      sortable: true,
-      sortField: "licenseNumber",
-    },
-    {
-      name: "Category",
-      selector: (row) => row.licenseCategory,
-      sortable: true,
-      sortField: "licenseCategory",
-    },
-    {
-      name: "Expiry Date",
-      selector: (row) => new Date(row.licenseExpiryDate).toLocaleDateString(),
-      sortable: true,
-      sortField: "licenseExpiryDate",
-    },
-    {
-      name: "Contact",
-      selector: (row) => row.contactNumber,
-      sortable: true,
-      sortField: "contactNumber",
-    },
-    {
-      name: "Safety Score",
-      selector: (row) => row.safetyScore,
-      sortable: true,
-      sortField: "safetyScore",
-    },
-    {
-      name: "Status",
-      selector: (row) => row.status,
-      sortable: true,
-      sortField: "status",
-    },
-    {
-      name: "Action",
-      cell: (row) => (
-        <div className="d-flex gap-2">
-          {currentPagePermissions?.edit && (
-            <Button color="success" size="sm" onClick={() => handleEdit(row._id)}>
-              Edit
-            </Button>
-          )}
-          {currentPagePermissions?.delete && (
-            <Button color="danger" size="sm" onClick={() => confirmDelete(row._id)}>
-              Delete
-            </Button>
-          )}
-        </div>
-      ),
-      ignoreRowClick: true,
-      allowOverflow: true,
-    },
-  ];
+    document.title = `Driver Master | ${adminData?.companyName || "TransitOps"}`;
 
-  document.title = `Driver Master | ${adminData?.companyName || "TransitOps"}`;
-
-  return (
-    <React.Fragment>
-      <div className="page-content">
-        <Container fluid>
-          <BreadCrumb maintitle="Master" title="Driver Master" pageTitle="Master" />
-
-          <Row>
-            <Col lg={12}>
-              <Card>
-                <CardHeader>
-                  <div className="d-flex flex-wrap gap-3 align-items-center justify-content-between">
-                    <div>
-                      <h4 className="card-title mb-1">Driver Master</h4>
-                      <p className="text-muted mb-0">Maintain driver profiles and safety details.</p>
-                    </div>
-                    <div className="d-flex flex-wrap gap-2 align-items-center">
-                      <div style={{ minWidth: 220 }}>
-                        <Select
-                          options={[{ value: "", label: "All Status" }, ...statusOptions]}
-                          value={selectedStatusFilter}
-                          onChange={setSelectedStatusFilter}
-                          isClearable
-                          placeholder="Filter by status"
-                        />
-                      </div>
-                      <div style={{ minWidth: 220 }}>
-                        <Input
-                          type="text"
-                          className="form-control"
-                          placeholder="Search drivers..."
-                          value={query}
-                          onChange={(e) => setQuery(e.target.value)}
-                        />
-                      </div>
-                      {currentPagePermissions?.write && (
-                        <Button color="success" onClick={handleAdd}>
-                          <i className="ri-add-line align-bottom me-1"></i>
-                          Add Driver
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                </CardHeader>
-
-                {(showForm || updateForm) ? (
-                  <CardBody>
-                    <Form onSubmit={(e) => e.preventDefault()}>
-                      <Row>
-                        <Col lg={4}>
-                          <div className="form-floating mb-3">
-                            <Input
-                              type="text"
-                              className="form-control"
-                              name="name"
-                              value={values.name}
-                              onChange={handleChange}
+    return (
+        <React.Fragment>
+            <div className="page-content">
+                <Container fluid>
+                    {view === "LIST" && (
+                        <>
+                            <BreadCrumb
+                                maintitle="Master"
+                                title="Driver"
+                                pageTitle="Master"
                             />
-                            <Label>Name <span className="text-danger">*</span></Label>
-                            {isSubmit && <p className="text-danger mb-0">{formErrors.name}</p>}
-                          </div>
-                        </Col>
-                        <Col lg={4}>
-                          <div className="form-floating mb-3">
-                            <Input
-                              type="text"
-                              className="form-control"
-                              name="licenseNumber"
-                              value={values.licenseNumber}
-                              onChange={handleChange}
-                            />
-                            <Label>License Number <span className="text-danger">*</span></Label>
-                            {isSubmit && <p className="text-danger mb-0">{formErrors.licenseNumber}</p>}
-                          </div>
-                        </Col>
-                        <Col lg={4}>
-                          <div className="form-floating mb-3">
-                            <Input
-                              type="text"
-                              className="form-control"
-                              name="licenseCategory"
-                              value={values.licenseCategory}
-                              onChange={handleChange}
-                            />
-                            <Label>License Category <span className="text-danger">*</span></Label>
-                            {isSubmit && <p className="text-danger mb-0">{formErrors.licenseCategory}</p>}
-                          </div>
-                        </Col>
-                      </Row>
+                            <Row>
+                                <Col lg={12}>
+                                    <Card>
+                                        <CardHeader>
+                                            <FormsHeader
+                                                formName="Driver"
+                                                filter={filter}
+                                                handleFilter={handleFilter}
+                                                tog_list={handleAddClick}
+                                                setQuery={setQuery}
+                                                showAddButton={currentPagePermissions?.write}
+                                            />
+                                        </CardHeader>
+                                        <CardBody>
+                                            <div id="driverList">
+                                                <div className="table-responsive table-card mt-1 mb-1 text-right">
+                                                    <DataTable
+                                                        columns={col}
+                                                        data={drivers}
+                                                        progressPending={isPageLoading}
+                                                        sortServer
+                                                        onSort={(column, direction) => {
+                                                            handleSort(column, direction);
+                                                        }}
+                                                        pagination
+                                                        paginationServer
+                                                        paginationTotalRows={totalRows}
+                                                        paginationPerPage={100}
+                                                        paginationRowsPerPageOptions={[50, 100, 200, 300, totalRows]}
+                                                        onChangeRowsPerPage={handlePerRowsChange}
+                                                        onChangePage={handlePageChange}
+                                                    />
+                                                </div>
+                                            </div>
+                                        </CardBody>
+                                    </Card>
+                                </Col>
+                            </Row>
+                        </>
+                    )}
 
-                      <Row>
-                        <Col lg={4}>
-                          <div className="form-floating mb-3">
-                            <Input
-                              type="date"
-                              className="form-control"
-                              name="licenseExpiryDate"
-                              value={values.licenseExpiryDate}
-                              onChange={handleChange}
+                    {(view === "ADD" || view === "EDIT") && (
+                        <>
+                            <BreadCrumb
+                                maintitle="Master"
+                                title={view === "ADD" ? "Add Driver" : "Edit Driver"}
+                                pageTitle="Master"
                             />
-                            <Label>License Expiry Date <span className="text-danger">*</span></Label>
-                            {isSubmit && <p className="text-danger mb-0">{formErrors.licenseExpiryDate}</p>}
-                          </div>
-                        </Col>
-                        <Col lg={4}>
-                          <div className="form-floating mb-3">
-                            <Input
-                              type="text"
-                              className="form-control"
-                              name="contactNumber"
-                              value={values.contactNumber}
-                              onChange={handleChange}
-                            />
-                            <Label>Contact Number <span className="text-danger">*</span></Label>
-                            {isSubmit && <p className="text-danger mb-0">{formErrors.contactNumber}</p>}
-                          </div>
-                        </Col>
-                        <Col lg={4}>
-                          <div className="form-floating mb-3">
-                            <Input
-                              type="number"
-                              className="form-control"
-                              name="safetyScore"
-                              value={values.safetyScore}
-                              onChange={handleChange}
-                              min="0"
-                              max="100"
-                              step="0.01"
-                            />
-                            <Label>Safety Score <span className="text-danger">*</span></Label>
-                            {isSubmit && <p className="text-danger mb-0">{formErrors.safetyScore}</p>}
-                          </div>
-                        </Col>
-                      </Row>
+                            <Row>
+                                <Col lg={12}>
+                                    <Card>
+                                        <CardHeader className="align-items-center d-flex">
+                                            <h4 className="card-title mb-0 flex-grow-1">
+                                                {view === "ADD" ? "Create New Driver" : "Update Driver"}
+                                            </h4>
+                                        </CardHeader>
+                                        <CardBody>
+                                            <form onSubmit={handleSubmit}>
+                                                <Row>
+                                                    <Col md={6}>
+                                                        <FormGroup className="mb-3">
+                                                            <Label for="name">Driver Name <span className="text-danger">*</span></Label>
+                                                            <Input
+                                                                type="text"
+                                                                name="name"
+                                                                id="name"
+                                                                placeholder="e.g. John Doe"
+                                                                value={values.name}
+                                                                onChange={handleChange}
+                                                                disabled={isLoading}
+                                                            />
+                                                            {isSubmit && formErrors.name && (
+                                                                <span className="text-danger">{formErrors.name}</span>
+                                                            )}
+                                                        </FormGroup>
+                                                    </Col>
+                                                    <Col md={6}>
+                                                        <FormGroup className="mb-3">
+                                                            <Label for="licenseNumber">License Number <span className="text-danger">*</span></Label>
+                                                            <Input
+                                                                type="text"
+                                                                name="licenseNumber"
+                                                                id="licenseNumber"
+                                                                placeholder="e.g. DL-123456789"
+                                                                value={values.licenseNumber}
+                                                                onChange={handleChange}
+                                                                disabled={isLoading}
+                                                            />
+                                                            {isSubmit && formErrors.licenseNumber && (
+                                                                <span className="text-danger">{formErrors.licenseNumber}</span>
+                                                            )}
+                                                        </FormGroup>
+                                                    </Col>
+                                                </Row>
 
-                      <Row>
-                        <Col lg={4}>
-                          <div className="mb-3">
-                            <Label className="form-label">Status <span className="text-danger">*</span></Label>
-                            <Select
-                              options={statusOptions}
-                              value={statusValue}
-                              onChange={handleStatusChange}
-                              placeholder="Select status"
-                            />
-                            {isSubmit && <p className="text-danger mb-0">{formErrors.status}</p>}
-                          </div>
-                        </Col>
-                      </Row>
+                                                <Row>
+                                                    <Col md={6}>
+                                                        <FormGroup className="mb-3">
+                                                            <Label for="licenseCategory">License Category <span className="text-danger">*</span></Label>
+                                                            <Input
+                                                                type="text"
+                                                                name="licenseCategory"
+                                                                id="licenseCategory"
+                                                                placeholder="e.g. Class A CDL"
+                                                                value={values.licenseCategory}
+                                                                onChange={handleChange}
+                                                                disabled={isLoading}
+                                                            />
+                                                            {isSubmit && formErrors.licenseCategory && (
+                                                                <span className="text-danger">{formErrors.licenseCategory}</span>
+                                                            )}
+                                                        </FormGroup>
+                                                    </Col>
+                                                    <Col md={6}>
+                                                        <FormGroup className="mb-3">
+                                                            <Label for="licenseExpiryDate">License Expiry Date <span className="text-danger">*</span></Label>
+                                                            <Input
+                                                                type="date"
+                                                                name="licenseExpiryDate"
+                                                                id="licenseExpiryDate"
+                                                                value={values.licenseExpiryDate}
+                                                                onChange={handleChange}
+                                                                disabled={isLoading}
+                                                            />
+                                                            {isSubmit && formErrors.licenseExpiryDate && (
+                                                                <span className="text-danger">{formErrors.licenseExpiryDate}</span>
+                                                            )}
+                                                        </FormGroup>
+                                                    </Col>
+                                                </Row>
 
-                      <Row className="mt-4">
-                        <Col lg={12}>
-                          {updateForm ? (
-                            <FormUpdateFooter
-                              handleUpdate={handleSubmit}
-                              handleUpdateCancel={handleCancel}
-                              isLoading={isLoading}
-                            />
-                          ) : (
-                            <FormsFooter
-                              handleSubmit={handleSubmit}
-                              handleSubmitCancel={handleCancel}
-                              isLoading={isLoading}
-                            />
-                          )}
-                        </Col>
-                      </Row>
-                    </Form>
-                  </CardBody>
-                ) : (
-                  <CardBody>
-                    <div className="table-responsive table-card mt-1 mb-1 text-right">
-                      <DataTable
-                        columns={columns}
-                        data={data}
-                        progressPending={loading}
-                        pagination
-                        paginationServer
-                        paginationTotalRows={totalRows}
-                        paginationPerPage={perPage}
-                        paginationRowsPerPageOptions={[10, 25, 50, 100]}
-                        onChangeRowsPerPage={handlePerRowsChange}
-                        onChangePage={handlePageChange}
-                        sortServer
-                        onSort={handleSort}
-                      />
-                    </div>
-                  </CardBody>
-                )}
-              </Card>
-            </Col>
-          </Row>
-        </Container>
-      </div>
-    </React.Fragment>
-  );
+                                                <Row>
+                                                    <Col md={6}>
+                                                        <FormGroup className="mb-3">
+                                                            <Label for="contactNumber">Contact Number <span className="text-danger">*</span></Label>
+                                                            <Input
+                                                                type="text"
+                                                                name="contactNumber"
+                                                                id="contactNumber"
+                                                                placeholder="e.g. +1 234 567 8900"
+                                                                value={values.contactNumber}
+                                                                onChange={handleChange}
+                                                                disabled={isLoading}
+                                                            />
+                                                            {isSubmit && formErrors.contactNumber && (
+                                                                <span className="text-danger">{formErrors.contactNumber}</span>
+                                                            )}
+                                                        </FormGroup>
+                                                    </Col>
+                                                    <Col md={6}>
+                                                        <FormGroup className="mb-3">
+                                                            <Label for="safetyScore">Safety Score (0 - 100) <span className="text-danger">*</span></Label>
+                                                            <Input
+                                                                type="number"
+                                                                name="safetyScore"
+                                                                id="safetyScore"
+                                                                placeholder="e.g. 95"
+                                                                value={values.safetyScore}
+                                                                onChange={handleChange}
+                                                                disabled={isLoading}
+                                                                min="0"
+                                                                max="100"
+                                                            />
+                                                            {isSubmit && formErrors.safetyScore && (
+                                                                <span className="text-danger">{formErrors.safetyScore}</span>
+                                                            )}
+                                                        </FormGroup>
+                                                    </Col>
+                                                </Row>
+
+                                                <Row>
+                                                    <Col md={6}>
+                                                        <FormGroup className="mb-3">
+                                                            <Label for="driver-status">Status <span className="text-danger">*</span></Label>
+                                                            <Select
+                                                                id="driver-status"
+                                                                options={statusOptions}
+                                                                value={statusOptions.find(opt => opt.value === values.status) || null}
+                                                                onChange={(selected) => setValues({ ...values, status: selected ? selected.value : "Available" })}
+                                                                placeholder="Select Status..."
+                                                                isDisabled={isLoading}
+                                                            />
+                                                        </FormGroup>
+                                                    </Col>
+                                                    <Col md={6}>
+                                                        <FormGroup className="mt-4 mb-3 d-flex align-items-center">
+                                                            <div className="form-check form-switch form-switch-md">
+                                                                <Input
+                                                                    className="form-check-input"
+                                                                    type="checkbox"
+                                                                    name="isActive"
+                                                                    id="isActive"
+                                                                    checked={values.isActive}
+                                                                    onChange={handleCheck}
+                                                                    disabled={isLoading}
+                                                                />
+                                                                <Label className="form-check-label ms-2" for="isActive">
+                                                                    Is Active
+                                                                </Label>
+                                                            </div>
+                                                        </FormGroup>
+                                                    </Col>
+                                                </Row>
+
+                                                <div className="d-flex justify-content-end gap-2 mt-4">
+                                                    <Button
+                                                        color="light"
+                                                        type="button"
+                                                        onClick={handleCancelClick}
+                                                        disabled={isLoading}
+                                                    >
+                                                        Cancel
+                                                    </Button>
+                                                    <Button
+                                                        color="success"
+                                                        type="submit"
+                                                        disabled={isLoading}
+                                                    >
+                                                        {isLoading ? "Saving..." : (view === "ADD" ? "Submit" : "Update")}
+                                                    </Button>
+                                                </div>
+                                            </form>
+                                        </CardBody>
+                                    </Card>
+                                </Col>
+                            </Row>
+                        </>
+                    )}
+                </Container>
+            </div>
+
+            <DeleteModal
+                show={modalDelete}
+                onDeleteClick={confirmDelete}
+                onCloseClick={() => setModalDelete(false)}
+                isLoading={isDeleteLoading}
+            />
+        </React.Fragment>
+    );
 };
 
 export default DriverMaster;

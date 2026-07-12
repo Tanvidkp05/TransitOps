@@ -89,8 +89,8 @@ const Vehicle = () => {
     const [totalRows, setTotalRows] = useState(0);
     const [perPage, setPerPage] = useState(100);
     const [pageNo, setPageNo] = useState(1);
-    const [sortColumn, setSortColumn] = useState("");
-    const [sortDirection, setSortDirection] = useState("");
+    const [sortColumn, setSortColumn] = useState("createdAt");
+    const [sortDirection, setSortDirection] = useState("desc");
 
     const fetchVehiclesList = async () => {
         setIsPageLoading(true);
