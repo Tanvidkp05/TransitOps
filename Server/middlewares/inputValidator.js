@@ -295,6 +295,78 @@ export const createCompanyValidation = [
 ];
 
 /**
+ * Driver creation validation
+ */
+export const createDriverValidation = [
+    nameValidator('name'),
+    body('licenseNumber')
+        .trim()
+        .notEmpty().withMessage('licenseNumber is required')
+        .isLength({ max: 100 }).withMessage('licenseNumber must not exceed 100 characters')
+        .customSanitizer(sanitizeString),
+    body('licenseCategory')
+        .trim()
+        .notEmpty().withMessage('licenseCategory is required')
+        .isLength({ max: 100 }).withMessage('licenseCategory must not exceed 100 characters')
+        .customSanitizer(sanitizeString),
+    body('licenseExpiryDate')
+        .notEmpty().withMessage('licenseExpiryDate is required')
+        .isISO8601().withMessage('licenseExpiryDate must be a valid date')
+        .toDate(),
+    phoneValidator('contactNumber').notEmpty().withMessage('contactNumber is required'),
+    body('safetyScore')
+        .notEmpty().withMessage('safetyScore is required')
+        .isFloat({ min: 0, max: 100 }).withMessage('safetyScore must be between 0 and 100')
+        .toFloat(),
+    body('status')
+        .notEmpty().withMessage('status is required')
+        .isIn(['Available', 'On Trip', 'Off Duty', 'Suspended'])
+        .withMessage('status must be one of: Available, On Trip, Off Duty, Suspended'),
+    handleValidationErrors,
+];
+
+/**
+ * Driver update validation
+ */
+export const updateDriverValidation = [
+    body('name')
+        .optional()
+        .trim()
+        .isLength({ min: MIN_LENGTHS.NAME, max: MAX_LENGTHS.NAME })
+        .withMessage(`name must be between ${MIN_LENGTHS.NAME} and ${MAX_LENGTHS.NAME} characters`)
+        .customSanitizer(sanitizeString),
+    body('licenseNumber')
+        .optional()
+        .trim()
+        .isLength({ max: 100 }).withMessage('licenseNumber must not exceed 100 characters')
+        .customSanitizer(sanitizeString),
+    body('licenseCategory')
+        .optional()
+        .trim()
+        .isLength({ max: 100 }).withMessage('licenseCategory must not exceed 100 characters')
+        .customSanitizer(sanitizeString),
+    body('licenseExpiryDate')
+        .optional()
+        .isISO8601().withMessage('licenseExpiryDate must be a valid date')
+        .toDate(),
+    body('contactNumber')
+        .optional()
+        .trim()
+        .isLength({ max: MAX_LENGTHS.PHONE }).withMessage(`contactNumber must not exceed ${MAX_LENGTHS.PHONE} characters`)
+        .matches(/^[+\d\s\-()]*$/)
+        .withMessage('contactNumber contains invalid characters'),
+    body('safetyScore')
+        .optional()
+        .isFloat({ min: 0, max: 100 }).withMessage('safetyScore must be between 0 and 100')
+        .toFloat(),
+    body('status')
+        .optional()
+        .isIn(['Available', 'On Trip', 'Off Duty', 'Suspended'])
+        .withMessage('status must be one of: Available, On Trip, Off Duty, Suspended'),
+    handleValidationErrors,
+];
+
+/**
  * OTP validation
  */
 export const otpValidation = [
@@ -380,6 +452,11 @@ export const allowedCompanyFields = [
     'address', 'pincode', 'website', 'isActive', 'contactPersonName', 'contactNumber'
 ];
 
+export const allowedDriverFields = [
+    'name', 'licenseNumber', 'licenseCategory', 'licenseExpiryDate',
+    'contactNumber', 'safetyScore', 'status'
+];
+
 export const allowedSearchFields = [
     'skip', 'per_page', 'sorton', 'sortdir', 'match', 'isActive'
 ];
@@ -390,6 +467,8 @@ export default {
     loginValidation,
     createEmployeeValidation,
     createCompanyValidation,
+    createDriverValidation,
+    updateDriverValidation,
     otpValidation,
     passwordResetValidation,
     searchValidation,
@@ -397,5 +476,6 @@ export default {
     allowedLoginFields,
     allowedEmployeeFields,
     allowedCompanyFields,
+    allowedDriverFields,
     allowedSearchFields,
 };

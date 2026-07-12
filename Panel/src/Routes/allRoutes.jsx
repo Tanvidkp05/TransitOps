@@ -17,6 +17,7 @@ import EmployeeRoles from "../pages/Setup/EmployeeRoles";
 import RoleMaster from "../pages/Master/RoleMaster";
 import CurrencyMaster from "../pages/Master/CurrencyMaster";
 import LoginAttemptLogs from "../pages/Master/LoginAttemptLogs";
+import DriverMaster from "../pages/Master/DriverMaster";
 
 const authProtectedRoutes = [
     { path: "/profile", component: <UserProfile /> },
@@ -35,6 +36,7 @@ const authProtectedRoutes = [
     { path: "/menu-master", component: <MenuMaster /> },
     { path: "/role-master", component: <RoleMaster /> },
     { path: "/currency-master", component: <CurrencyMaster /> },
+    { path: "/driver-master", component: <DriverMaster /> },
     { path: "/login-attempt-logs", component: <LoginAttemptLogs /> },
     {
         path: "/",
