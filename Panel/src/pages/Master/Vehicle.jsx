@@ -631,9 +631,9 @@ const Vehicle = () => {
                                                     </Col>
                                                     <Col md={6}>
                                                         <FormGroup className="mb-3">
-                                                            <Label for="status">Status <span className="text-danger">*</span></Label>
+                                                            <Label for="vehicle-status">Status <span className="text-danger">*</span></Label>
                                                             <Select
-                                                                id="status"
+                                                                id="vehicle-status"
                                                                 options={statusOptions}
                                                                 value={statusOptions.find(opt => opt.value === values.status) || null}
                                                                 onChange={(selected) => setValues({ ...values, status: selected ? selected.value : "Available" })}
