@@ -179,24 +179,24 @@ export const booleanValidator = (fieldName) => body(fieldName)
  */
 export const paginationValidators = [
     body('skip')
-        .optional()
+        .optional({ checkFalsy: true })
         .isInt({ min: 0 }).withMessage('skip must be a non-negative integer')
         .toInt(),
     body('per_page')
-        .optional()
+        .optional({ checkFalsy: true })
         .isInt({ min: 1, max: 100 }).withMessage('per_page must be between 1 and 100')
         .toInt(),
     body('sorton')
-        .optional()
+        .optional({ checkFalsy: true })
         .trim()
         .isLength({ max: 50 }).withMessage('sorton must not exceed 50 characters')
         .matches(/^[a-zA-Z_]+$/).withMessage('sorton contains invalid characters'),
     body('sortdir')
-        .optional()
+        .optional({ checkFalsy: true })
         .trim()
         .isIn(['asc', 'desc', 'ASC', 'DESC']).withMessage('sortdir must be asc or desc'),
     body('match')
-        .optional()
+        .optional({ checkFalsy: true })
         .trim()
         .isLength({ max: MAX_LENGTHS.SHORT_TEXT }).withMessage(`match must not exceed ${MAX_LENGTHS.SHORT_TEXT} characters`)
         .customSanitizer(sanitizeString),
@@ -458,7 +458,7 @@ export const allowedDriverFields = [
 ];
 
 export const allowedSearchFields = [
-    'skip', 'per_page', 'sorton', 'sortdir', 'match', 'isActive'
+    'skip', 'per_page', 'sorton', 'sortdir', 'match', 'isActive', 'status'
 ];
 
 export default {

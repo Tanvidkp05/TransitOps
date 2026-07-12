@@ -10,6 +10,7 @@ const DRIVER_SELECT = {
   contactNumber: 1,
   safetyScore: 1,
   status: 1,
+  isActive: 1,
   createdAt: 1,
   updatedAt: 1,
 };
@@ -22,6 +23,7 @@ const DRIVER_RESPONSE_FIELDS = [
   "contactNumber",
   "safetyScore",
   "status",
+  "isActive",
 ];
 
 const buildDriverPayload = (driver) => {
@@ -81,6 +83,7 @@ export const createDriver = async (req, res) => {
       contactNumber,
       safetyScore,
       status,
+      isActive,
     } = req.body;
 
     const duplicate = await findDuplicateLicense(licenseNumber);
@@ -100,6 +103,7 @@ export const createDriver = async (req, res) => {
       contactNumber,
       safetyScore,
       status,
+      isActive: isActive !== undefined ? (isActive === "true" || isActive === true) : true,
     });
 
     return res.status(201).json({
@@ -197,6 +201,10 @@ export const updateDriver = async (req, res) => {
       }
     });
 
+    if (req.body.isActive !== undefined) {
+      driver.isActive = req.body.isActive === "true" || req.body.isActive === true;
+    }
+
     if (req.body.licenseNumber !== undefined) {
       const duplicate = await findDuplicateLicense(req.body.licenseNumber, driverId);
       if (duplicate) {
@@ -260,7 +268,7 @@ export const deleteDriver = async (req, res) => {
 
 export const listDriversByParams = async (req, res) => {
   try {
-    let { skip = 0, per_page = 100, sorton, sortdir, match, status } = req.body;
+    let { skip = 0, per_page = 100, sorton, sortdir, match, status, isActive } = req.body;
 
     skip = Number(skip) || 0;
     per_page = Number(per_page) || 100;
@@ -268,6 +276,9 @@ export const listDriversByParams = async (req, res) => {
     const matchCondition = {};
     if (status) {
       matchCondition.status = status;
+    }
+    if (isActive !== undefined && isActive !== null && isActive !== "") {
+      matchCondition.isActive = isActive === "true" || isActive === true;
     }
 
     let query = [
