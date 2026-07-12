@@ -19,6 +19,7 @@ import { toast } from "react-toastify";
 import Select from "react-select";
 import { AuthContext } from "../../context/AuthContext";
 import { MenuContext } from "../../context/MenuContext";
+import config from "../../config";
 import {
     createExpense,
     deleteExpense,
@@ -154,10 +155,11 @@ const ExpenseManagement = () => {
 
     useEffect(() => {
         if (view === "LIST") {
+            // Load vehicle costs summary on mount and view changes so Grand Total is always populated
+            fetchCostsSummary();
+            
             if (activeTab === "EXPENSES") {
                 fetchExpensesList();
-            } else if (activeTab === "COST_SUMMARY") {
-                fetchCostsSummary();
             }
         }
     }, [pageNo, perPage, sortColumn, sortDirection, query, filter, view, activeTab]);
@@ -243,7 +245,7 @@ const ExpenseManagement = () => {
                     });
 
                     if (data.receipt_image) {
-                        const apiUrl = process.env.REACT_APP_API_URL || "http://localhost:8000";
+                        const apiUrl = config.api.API_URL;
                         setImagePreview(`${apiUrl}/${data.receipt_image}`);
                         setShowFileInput(false);
                     } else {
@@ -424,7 +426,7 @@ const ExpenseManagement = () => {
             name: "Receipt",
             selector: (row) => {
                 if (row.receipt_image) {
-                    const apiUrl = process.env.REACT_APP_API_URL || "http://localhost:8000";
+                    const apiUrl = config.api.API_URL;
                     return (
                         <img
                             src={`${apiUrl}/${row.receipt_image}`}
@@ -593,6 +595,12 @@ const ExpenseManagement = () => {
         }
     ];
 
+    const grandTotalOperationalCost = (vehicleCosts || []).reduce((acc, curr) => acc + (curr.total_operational_cost || 0), 0);
+    const fleetTotalFuelLiters = (vehicleCosts || []).reduce((acc, curr) => acc + (curr.fuel_liters || 0), 0);
+    const fleetTotalFuelCost = (vehicleCosts || []).reduce((acc, curr) => acc + (curr.fuel_cost || 0), 0);
+    const fleetTotalMaintenanceCost = (vehicleCosts || []).reduce((acc, curr) => acc + (curr.maintenance_cost || 0), 0);
+    const fleetTotalOtherCost = (vehicleCosts || []).reduce((acc, curr) => acc + (curr.other_cost || 0), 0);
+
     document.title = `Fuel & Expenses | ${adminData?.companyName || "TransitOps"}`;
 
     return (
@@ -605,32 +613,127 @@ const ExpenseManagement = () => {
                                 maintitle="Master"
                                 title="Fuel & Expense Management"
                                 pageTitle="Master"
-                            />
-                            
-                            {/* Nav Tabs */}
-                            <ul className="nav nav-tabs nav-tabs-custom nav-success mb-3" role="tablist">
-                                <li className="nav-item">
-                                    <button
-                                        className={`nav-link ${activeTab === "EXPENSES" ? "active" : ""}`}
-                                        onClick={() => {
-                                            setPageNo(1);
-                                            setActiveTab("EXPENSES");
-                                        }}
-                                    >
-                                        Expense Logs
-                                    </button>
-                                </li>
-                                <li className="nav-item">
-                                    <button
-                                        className={`nav-link ${activeTab === "COST_SUMMARY" ? "active" : ""}`}
-                                        onClick={() => {
-                                            setActiveTab("COST_SUMMARY");
-                                        }}
-                                    >
-                                        Vehicle Cost Summary
-                                    </button>
-                                </li>
-                            </ul>
+                             />
+
+                            {/* Fleet Statistics KPI Cards Row */}
+                            <Row className="mb-3">
+                                <Col xl={3} md={6}>
+                                    <Card className="card-animate border-0 shadow-sm bg-success-subtle mb-3">
+                                        <CardBody className="p-3">
+                                            <div className="d-flex align-items-center">
+                                                <div className="flex-grow-1 overflow-hidden">
+                                                    <p className="text-uppercase fw-medium text-success text-truncate mb-0" style={{ fontSize: "11px" }}>Total Fuel Consumed</p>
+                                                    <h5 className="fs-18 fw-semibold text-success mt-1 mb-0">
+                                                        {fleetTotalFuelLiters.toLocaleString()} L
+                                                    </h5>
+                                                    <span className="text-muted fs-11">Cost: ${fleetTotalFuelCost.toLocaleString()}</span>
+                                                </div>
+                                                <div className="avatar-sm flex-shrink-0">
+                                                    <span className="avatar-title bg-success text-white rounded-circle fs-3 shadow">
+                                                        <i className="ri-oil-fill"></i>
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </CardBody>
+                                    </Card>
+                                </Col>
+                                <Col xl={3} md={6}>
+                                    <Card className="card-animate border-0 shadow-sm bg-warning-subtle mb-3">
+                                        <CardBody className="p-3">
+                                            <div className="d-flex align-items-center">
+                                                <div className="flex-grow-1 overflow-hidden">
+                                                    <p className="text-uppercase fw-medium text-warning text-truncate mb-0" style={{ fontSize: "11px" }}>Total Maintenance Cost</p>
+                                                    <h5 className="fs-18 fw-semibold text-warning mt-1 mb-0">
+                                                        ${fleetTotalMaintenanceCost.toLocaleString()}
+                                                    </h5>
+                                                    <span className="text-muted fs-11">From Completed Logs</span>
+                                                </div>
+                                                <div className="avatar-sm flex-shrink-0">
+                                                    <span className="avatar-title bg-warning text-white rounded-circle fs-3 shadow">
+                                                        <i className="ri-tools-fill"></i>
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </CardBody>
+                                    </Card>
+                                </Col>
+                                <Col xl={3} md={6}>
+                                    <Card className="card-animate border-0 shadow-sm bg-info-subtle mb-3">
+                                        <CardBody className="p-3">
+                                            <div className="d-flex align-items-center">
+                                                <div className="flex-grow-1 overflow-hidden">
+                                                    <p className="text-uppercase fw-medium text-info text-truncate mb-0" style={{ fontSize: "11px" }}>Tolls & Other Expenses</p>
+                                                    <h5 className="fs-18 fw-semibold text-info mt-1 mb-0">
+                                                        ${fleetTotalOtherCost.toLocaleString()}
+                                                    </h5>
+                                                    <span className="text-muted fs-11">Tolls, Permits, Insurance</span>
+                                                </div>
+                                                <div className="avatar-sm flex-shrink-0">
+                                                    <span className="avatar-title bg-info text-white rounded-circle fs-3 shadow">
+                                                        <i className="ri-roadster-fill"></i>
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </CardBody>
+                                    </Card>
+                                </Col>
+                                <Col xl={3} md={6}>
+                                    <Card className="card-animate border-0 shadow-sm bg-danger-subtle mb-3">
+                                        <CardBody className="p-3">
+                                            <div className="d-flex align-items-center">
+                                                <div className="flex-grow-1 overflow-hidden">
+                                                    <p className="text-uppercase fw-medium text-danger text-truncate mb-0" style={{ fontSize: "11px" }}>Grand Total Cost</p>
+                                                    <h5 className="fs-18 fw-semibold text-danger mt-1 mb-0">
+                                                        ${grandTotalOperationalCost.toLocaleString()}
+                                                    </h5>
+                                                    <span className="text-muted fs-11">Entire Fleet Operations</span>
+                                                </div>
+                                                <div className="avatar-sm flex-shrink-0">
+                                                    <span className="avatar-title bg-danger text-white rounded-circle fs-3 shadow">
+                                                        <i className="ri-money-dollar-circle-fill"></i>
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </CardBody>
+                                    </Card>
+                                </Col>
+                            </Row>
+                             
+                            {/* Nav Tabs & Grand Total Wrapper */}
+                            <div className="d-flex align-items-center justify-content-between mb-3 border-bottom pb-1">
+                                <ul className="nav nav-tabs nav-tabs-custom nav-success border-0 mb-0" role="tablist">
+                                    <li className="nav-item">
+                                        <button
+                                            className={`nav-link ${activeTab === "EXPENSES" ? "active" : ""}`}
+                                            onClick={() => {
+                                                setPageNo(1);
+                                                setActiveTab("EXPENSES");
+                                            }}
+                                        >
+                                            Expense Logs
+                                        </button>
+                                    </li>
+                                    <li className="nav-item">
+                                        <button
+                                            className={`nav-link ${activeTab === "COST_SUMMARY" ? "active" : ""}`}
+                                            onClick={() => {
+                                                setActiveTab("COST_SUMMARY");
+                                            }}
+                                        >
+                                            Vehicle Cost Summary
+                                        </button>
+                                    </li>
+                                </ul>
+
+                                <div className="d-flex align-items-center me-2">
+                                    <span className="text-muted fs-11 fw-semibold me-2 text-uppercase" style={{ letterSpacing: "0.5px" }}>
+                                        Grand Total Fleet Cost:
+                                    </span>
+                                    <span className="badge bg-success-subtle text-success fs-13 py-1.5 px-2.5 border border-success-subtle">
+                                        ${grandTotalOperationalCost.toLocaleString()}
+                                    </span>
+                                </div>
+                            </div>
 
                             <Row>
                                 <Col lg={12}>
@@ -647,6 +750,19 @@ const ExpenseManagement = () => {
                                             />
                                         </CardHeader>
                                         <CardBody>
+                                            {activeTab === "COST_SUMMARY" && (
+                                                <div className="bg-light p-3 rounded mb-3 d-flex align-items-center justify-content-between border">
+                                                    <div className="d-flex align-items-center">
+                                                        <i className="ri-calculator-line fs-20 text-primary me-2"></i>
+                                                        <span className="fw-bold text-uppercase fs-12 text-dark" style={{ letterSpacing: "0.5px" }}>
+                                                            TOTAL OPERATIONAL COST (AUTO) = FUEL + MAINT
+                                                        </span>
+                                                    </div>
+                                                    <span className="badge bg-primary-subtle text-primary fs-11">
+                                                        Automatically Aggregated
+                                                    </span>
+                                                </div>
+                                            )}
                                             <div className="table-responsive table-card mt-1 mb-1 text-right">
                                                 {activeTab === "EXPENSES" ? (
                                                     <DataTable

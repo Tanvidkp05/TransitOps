@@ -30,6 +30,7 @@ import {
 
 const initialState = {
     name: "",
+    email: "",
     licenseNumber: "",
     licenseCategory: "",
     licenseExpiryDate: "",
@@ -184,6 +185,7 @@ const DriverMaster = () => {
                     const data = res.data.data;
                     setValues({
                         name: data.name,
+                        email: data.email || "",
                         licenseNumber: data.licenseNumber,
                         licenseCategory: data.licenseCategory,
                         licenseExpiryDate: data.licenseExpiryDate ? new Date(data.licenseExpiryDate).toISOString().split("T")[0] : "",
@@ -228,6 +230,11 @@ const DriverMaster = () => {
         if (!fields.name.trim()) {
             errors.name = "Driver name is required";
         }
+        if (!fields.email.trim()) {
+            errors.email = "Email address is required";
+        } else if (!/\S+@\S+\.\S+/.test(fields.email)) {
+            errors.email = "Invalid email format";
+        }
         if (!fields.licenseNumber.trim()) {
             errors.licenseNumber = "License number is required";
         }
@@ -262,6 +269,7 @@ const DriverMaster = () => {
             const payload = {
                 ...values,
                 name: values.name.trim(),
+                email: values.email.trim(),
                 licenseNumber: values.licenseNumber.trim(),
                 licenseCategory: values.licenseCategory.trim(),
                 contactNumber: values.contactNumber.trim(),
@@ -344,6 +352,13 @@ const DriverMaster = () => {
             sortable: true,
             sortField: "name",
             minWidth: "130px",
+        },
+        {
+            name: "Email",
+            selector: (row) => row.email,
+            sortable: true,
+            sortField: "email",
+            minWidth: "150px",
         },
         {
             name: "License Number",
@@ -607,7 +622,7 @@ const DriverMaster = () => {
                                         <CardBody>
                                             <form onSubmit={handleSubmit}>
                                                 <Row>
-                                                    <Col md={6}>
+                                                    <Col md={4}>
                                                         <FormGroup className="mb-3">
                                                             <Label for="name">Driver Name <span className="text-danger">*</span></Label>
                                                             <Input
@@ -624,7 +639,24 @@ const DriverMaster = () => {
                                                             )}
                                                         </FormGroup>
                                                     </Col>
-                                                    <Col md={6}>
+                                                    <Col md={4}>
+                                                        <FormGroup className="mb-3">
+                                                            <Label for="email">Email Address <span className="text-danger">*</span></Label>
+                                                            <Input
+                                                                type="email"
+                                                                name="email"
+                                                                id="email"
+                                                                placeholder="e.g. driver@transitops.com"
+                                                                value={values.email}
+                                                                onChange={handleChange}
+                                                                disabled={isLoading}
+                                                            />
+                                                            {isSubmit && formErrors.email && (
+                                                                <span className="text-danger">{formErrors.email}</span>
+                                                            )}
+                                                        </FormGroup>
+                                                    </Col>
+                                                    <Col md={4}>
                                                         <FormGroup className="mb-3">
                                                             <Label for="licenseNumber">License Number <span className="text-danger">*</span></Label>
                                                             <Input

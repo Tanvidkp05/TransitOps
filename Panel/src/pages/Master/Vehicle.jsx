@@ -19,6 +19,7 @@ import { toast } from "react-toastify";
 import Select from "react-select";
 import { AuthContext } from "../../context/AuthContext";
 import { MenuContext } from "../../context/MenuContext";
+import config from "../../config";
 import {
     createVehicle,
     deleteVehicle,
@@ -240,7 +241,7 @@ const Vehicle = () => {
                     });
 
                     if (data.image) {
-                        const apiUrl = process.env.REACT_APP_API_URL || "http://localhost:8000";
+                        const apiUrl = config.api.API_URL;
                         setImagePreview(`${apiUrl}/${data.image}`);
                         setShowFileInput(false);
                     } else {

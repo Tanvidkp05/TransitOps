@@ -2,6 +2,7 @@ import React, { useContext, useEffect, useState } from "react";
 import { Container, Row, Col, Card, CardBody } from "reactstrap";
 import BreadCrumb from "../../Components/Common/BreadCrumb";
 import { AuthContext } from "../../context/AuthContext";
+import { MenuContext } from "../../context/MenuContext";
 import api from "../../api/index";
 import { ENDPOINTS } from "../../api/endpoints";
 import {
@@ -24,6 +25,7 @@ const Dashboard = () => {
     const currentTime = new Date();
     const currentHour = currentTime.getHours();
     const { adminData } = useContext(AuthContext);
+    const { menuData, isAdmin, loading: menuLoading } = useContext(MenuContext);
 
     const [vehicles, setVehicles] = useState([]);
     const [trips, setTrips] = useState([]);
@@ -120,6 +122,62 @@ const Dashboard = () => {
             cargo: `${t.cargo_weight || ""}`,
             status: t.status,
         }));
+
+    const hasDashboardAccess = isAdmin || (menuData && menuData.some(group => {
+        if (group.isLink && group.url === "/dashboard") return true;
+        return group.menus && group.menus.some(menu => {
+            if (menu.url === "/dashboard") return true;
+            return menu.children && menu.children.some(child => child.url === "/dashboard");
+        });
+    }));
+
+    if (menuLoading) {
+        return (
+            <div className="page-content text-center mt-5">
+                <div className="spinner-border text-primary" role="status">
+                    <span className="sr-only">Loading...</span>
+                </div>
+            </div>
+        );
+    }
+
+    if (!hasDashboardAccess) {
+        return (
+            <React.Fragment>
+                <div className="page-content">
+                    <Container fluid>
+                        <Row className="justify-content-center align-items-center mt-5">
+                            <Col md={8} lg={6}>
+                                <Card className="border-0 shadow-lg overflow-hidden rounded-4">
+                                    <div className="bg-primary p-4 text-white text-center position-relative overflow-hidden">
+                                        <h3 className="text-white mb-2 fs-22 fw-bold">Welcome, {adminData?.employeeName || adminData?.companyName || "Employee"}!</h3>
+                                        <p className="text-white-50 mb-0 fs-13">TransitOps Operations & Fleet Management Panel</p>
+                                    </div>
+                                    <CardBody className="p-5 text-center bg-white">
+                                        <div className="avatar-lg mx-auto mb-4 d-flex align-items-center justify-content-center rounded-circle shadow-sm" style={{ width: "90px", height: "90px", backgroundColor: "#eef2ff" }}>
+                                            <i className="ri-user-smile-line text-primary" style={{ fontSize: "44px" }}></i>
+                                        </div>
+                                        <h4 className="fw-semibold text-dark mb-3">Happy to have you on board!</h4>
+                                        <p className="text-muted mb-4 fs-14">
+                                            Your account is active. Please use the navigation sidebar to access your permitted workspace modules and tools.
+                                        </p>
+                                        <div className="bg-light p-3 rounded-3 border mb-4 text-start">
+                                            <div className="d-flex align-items-center">
+                                                <i className="ri-information-line fs-20 text-info me-2"></i>
+                                                <span className="text-muted fs-13">
+                                                    Note: The landing dashboard page is not enabled for your active role.
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </CardBody>
+                                </Card>
+                            </Col>
+                        </Row>
+                    </Container>
+                </div>
+            </React.Fragment>
+        );
+    }
 
     return (
         <React.Fragment>
