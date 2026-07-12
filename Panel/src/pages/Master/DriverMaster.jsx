@@ -25,6 +25,7 @@ import {
     getDriverById,
     updateDriver,
     searchDrivers,
+    getAllDrivers,
 } from "../../api/drivers.api";
 
 const initialState = {
@@ -64,6 +65,13 @@ const DriverMaster = () => {
     const [editId, setEditId] = useState("");
     const [removeId, setRemoveId] = useState("");
     const [modalDelete, setModalDelete] = useState(false);
+    const [selectedStatus, setSelectedStatus] = useState("");
+    const [stats, setStats] = useState({
+        Available: 0,
+        "On Trip": 0,
+        "Off Duty": 0,
+        "Suspended": 0,
+    });
 
     // Datatable states
     const [totalRows, setTotalRows] = useState(0);
@@ -71,6 +79,33 @@ const DriverMaster = () => {
     const [pageNo, setPageNo] = useState(1);
     const [sortColumn, setSortColumn] = useState("createdAt");
     const [sortDirection, setSortDirection] = useState("desc");
+
+    const fetchDriverStats = async () => {
+        try {
+            const response = await getAllDrivers();
+            if (response.data?.data) {
+                const data = response.data.data;
+                const counts = {
+                    Available: data.filter(d => d.status === "Available" && d.isActive === filter).length,
+                    "On Trip": data.filter(d => d.status === "On Trip" && d.isActive === filter).length,
+                    "Off Duty": data.filter(d => d.status === "Off Duty" && d.isActive === filter).length,
+                    "Suspended": data.filter(d => d.status === "Suspended" && d.isActive === filter).length,
+                };
+                setStats(counts);
+            }
+        } catch (error) {
+            console.error("Error fetching driver stats:", error);
+        }
+    };
+
+    const handleStatusFilterToggle = (status) => {
+        setPageNo(1);
+        if (selectedStatus === status) {
+            setSelectedStatus("");
+        } else {
+            setSelectedStatus(status);
+        }
+    };
 
     const fetchDriversList = async () => {
         setIsPageLoading(true);
@@ -87,6 +122,7 @@ const DriverMaster = () => {
                 sortdir: sortDirection,
                 match: query,
                 isActive: filter,
+                status: selectedStatus,
             });
 
             if (response.data?.data?.length > 0) {
@@ -110,8 +146,9 @@ const DriverMaster = () => {
     useEffect(() => {
         if (view === "LIST") {
             fetchDriversList();
+            fetchDriverStats();
         }
-    }, [pageNo, perPage, sortColumn, sortDirection, query, filter, view]);
+    }, [pageNo, perPage, sortColumn, sortDirection, query, filter, view, selectedStatus]);
 
     const handleSort = (column, direction) => {
         setSortColumn(column.sortField);
@@ -407,6 +444,110 @@ const DriverMaster = () => {
                                 title="Driver"
                                 pageTitle="Master"
                             />
+                            
+                            {/* Driver Stats Widgets */}
+                            <Row className="mb-4">
+                                <Col xl={3} md={6}>
+                                    <Card 
+                                        className={`card-animate cursor-pointer border ${selectedStatus === "Available" ? "border-success shadow-lg" : "border-light"}`} 
+                                        onClick={() => handleStatusFilterToggle("Available")}
+                                        style={{ cursor: "pointer", transition: "all 0.3s ease" }}
+                                    >
+                                        <CardBody className="p-3">
+                                            <div className="d-flex align-items-center">
+                                                <div className="flex-grow-1 overflow-hidden">
+                                                    <p className="text-uppercase fw-semibold text-muted text-truncate mb-0 fs-12">Available Drivers</p>
+                                                </div>
+                                            </div>
+                                            <div className="d-flex align-items-end justify-content-between mt-3">
+                                                <div>
+                                                    <h4 className="fs-22 fw-semibold ff-secondary mb-0">{stats.Available}</h4>
+                                                </div>
+                                                <div className="avatar-sm flex-shrink-0">
+                                                    <span className="avatar-title bg-soft-success rounded fs-3 p-2">
+                                                        <i className="ri-checkbox-circle-line text-success"></i>
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </CardBody>
+                                    </Card>
+                                </Col>
+                                <Col xl={3} md={6}>
+                                    <Card 
+                                        className={`card-animate cursor-pointer border ${selectedStatus === "On Trip" ? "border-primary shadow-lg" : "border-light"}`} 
+                                        onClick={() => handleStatusFilterToggle("On Trip")}
+                                        style={{ cursor: "pointer", transition: "all 0.3s ease" }}
+                                    >
+                                        <CardBody className="p-3">
+                                            <div className="d-flex align-items-center">
+                                                <div className="flex-grow-1 overflow-hidden">
+                                                    <p className="text-uppercase fw-semibold text-muted text-truncate mb-0 fs-12">On Trip</p>
+                                                </div>
+                                            </div>
+                                            <div className="d-flex align-items-end justify-content-between mt-3">
+                                                <div>
+                                                    <h4 className="fs-22 fw-semibold ff-secondary mb-0">{stats["On Trip"]}</h4>
+                                                </div>
+                                                <div className="avatar-sm flex-shrink-0">
+                                                    <span className="avatar-title bg-soft-primary rounded fs-3 p-2">
+                                                        <i className="ri-route-line text-primary"></i>
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </CardBody>
+                                    </Card>
+                                </Col>
+                                <Col xl={3} md={6}>
+                                    <Card 
+                                        className={`card-animate cursor-pointer border ${selectedStatus === "Off Duty" ? "border-secondary shadow-lg" : "border-light"}`} 
+                                        onClick={() => handleStatusFilterToggle("Off Duty")}
+                                        style={{ cursor: "pointer", transition: "all 0.3s ease" }}
+                                    >
+                                        <CardBody className="p-3">
+                                            <div className="d-flex align-items-center">
+                                                <div className="flex-grow-1 overflow-hidden">
+                                                    <p className="text-uppercase fw-semibold text-muted text-truncate mb-0 fs-12">Off Duty</p>
+                                                </div>
+                                            </div>
+                                            <div className="d-flex align-items-end justify-content-between mt-3">
+                                                <div>
+                                                    <h4 className="fs-22 fw-semibold ff-secondary mb-0">{stats["Off Duty"]}</h4>
+                                                </div>
+                                                <div className="avatar-sm flex-shrink-0">
+                                                    <span className="avatar-title bg-soft-secondary rounded fs-3 p-2">
+                                                        <i className="ri-shut-down-line text-secondary"></i>
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </CardBody>
+                                    </Card>
+                                </Col>
+                                <Col xl={3} md={6}>
+                                    <Card 
+                                        className={`card-animate cursor-pointer border ${selectedStatus === "Suspended" ? "border-danger shadow-lg" : "border-light"}`} 
+                                        onClick={() => handleStatusFilterToggle("Suspended")}
+                                        style={{ cursor: "pointer", transition: "all 0.3s ease" }}
+                                    >
+                                        <CardBody className="p-3">
+                                            <div className="d-flex align-items-center">
+                                                <div className="flex-grow-1 overflow-hidden">
+                                                    <p className="text-uppercase fw-semibold text-muted text-truncate mb-0 fs-12">Suspended</p>
+                                                </div>
+                                            </div>
+                                            <div className="d-flex align-items-end justify-content-between mt-3">
+                                                <div>
+                                                    <h4 className="fs-22 fw-semibold ff-secondary mb-0">{stats.Suspended}</h4>
+                                                </div>
+                                                <div className="avatar-sm flex-shrink-0">
+                                                    <span className="avatar-title bg-soft-danger rounded fs-3 p-2">
+                                                        <i className="ri-error-warning-line text-danger"></i>
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </CardBody>
+                                    </Card>
+                                </Col>
+                            </Row>
                             <Row>
                                 <Col lg={12}>
                                     <Card>

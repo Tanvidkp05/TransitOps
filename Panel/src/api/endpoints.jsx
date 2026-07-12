@@ -136,6 +136,13 @@ export const ENDPOINTS = {
         SEARCH: `${V1}/vehicles/search`,
     },
 
+    // Vehicle Types endpoints
+    VEHICLE_TYPES: {
+        BASE: `${V1}/vehicle-types`,
+        BY_ID: (id) => `${V1}/vehicle-types/${id}`,
+        SEARCH: `${V1}/vehicle-types/search`,
+    },
+
     // Maintenance Logs endpoints
     MAINTENANCE_LOGS: {
         BASE: `${V1}/maintenance-logs`,

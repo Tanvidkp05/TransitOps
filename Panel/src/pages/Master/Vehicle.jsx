@@ -26,6 +26,7 @@ import {
     updateVehicle,
     searchVehicles,
 } from "../../api/vehicles.api";
+import { getAllVehicleTypes } from "../../api/vehicleTypes.api";
 
 const initialState = {
     registration_number: "",
@@ -39,18 +40,6 @@ const initialState = {
     isActive: true,
 };
 
-const typeOptions = [
-    { value: "Cargo Van", label: "Cargo Van" },
-    { value: "Box Truck", label: "Box Truck" },
-    { value: "Flatbed Truck", label: "Flatbed Truck" },
-    { value: "Semi-Trailer", label: "Semi-Trailer" },
-    { value: "Refrigerated Truck", label: "Refrigerated Truck" },
-    { value: "SUV", label: "SUV" },
-    { value: "Sedan", label: "Sedan" },
-    { value: "Pickup Truck", label: "Pickup Truck" },
-    { value: "Other", label: "Other" },
-];
-
 const statusOptions = [
     { value: "Available", label: "Available" },
     { value: "On Trip", label: "On Trip" },
@@ -63,6 +52,7 @@ const Vehicle = () => {
     const { currentPagePermissions } = useContext(MenuContext);
 
     const [view, setView] = useState("LIST"); // "LIST", "ADD", "EDIT"
+    const [typeOptions, setTypeOptions] = useState([]);
     const [values, setValues] = useState(initialState);
     const [formErrors, setFormErrors] = useState({});
     const [isSubmit, setIsSubmit] = useState(false);
@@ -74,6 +64,8 @@ const Vehicle = () => {
 
     const [vehicles, setVehicles] = useState([]);
     const [query, setQuery] = useState("");
+    const [selectedType, setSelectedType] = useState([]);
+    const [selectedStatus, setSelectedStatus] = useState([]);
     const [editId, setEditId] = useState("");
     const [removeId, setRemoveId] = useState("");
     const [modalDelete, setModalDelete] = useState(false);
@@ -92,6 +84,37 @@ const Vehicle = () => {
     const [sortColumn, setSortColumn] = useState("createdAt");
     const [sortDirection, setSortDirection] = useState("desc");
 
+    const fetchVehicleTypes = async () => {
+        try {
+            const response = await getAllVehicleTypes();
+            if (response.data?.data) {
+                const options = response.data.data.map(type => ({
+                    value: type.name,
+                    label: type.name
+                }));
+                setTypeOptions(options);
+            }
+        } catch (error) {
+            console.error("Error fetching vehicle types:", error);
+        }
+    };
+
+    useEffect(() => {
+        fetchVehicleTypes();
+    }, [view]);
+
+    const handleTypeFilterChange = (selected) => {
+        setPageNo(1);
+        const values = selected ? selected.map(opt => opt.value) : [];
+        setSelectedType(values);
+    };
+
+    const handleStatusFilterChange = (selected) => {
+        setPageNo(1);
+        const values = selected ? selected.map(opt => opt.value) : [];
+        setSelectedStatus(values);
+    };
+
     const fetchVehiclesList = async () => {
         setIsPageLoading(true);
         let skip = (pageNo - 1) * perPage;
@@ -107,6 +130,8 @@ const Vehicle = () => {
                 sortdir: sortDirection,
                 match: query,
                 isActive: filter,
+                type: selectedType,
+                status: selectedStatus,
             });
 
             if (response.data?.data?.length > 0) {
@@ -131,7 +156,7 @@ const Vehicle = () => {
         if (view === "LIST") {
             fetchVehiclesList();
         }
-    }, [pageNo, perPage, sortColumn, sortDirection, query, filter, view]);
+    }, [pageNo, perPage, sortColumn, sortDirection, query, filter, view, selectedType, selectedStatus]);
 
     const handleSort = (column, direction) => {
         setSortColumn(column.sortField);
@@ -293,7 +318,7 @@ const Vehicle = () => {
         if (Object.keys(errors).length === 0) {
             setIsLoading(true);
             const formData = new FormData();
-            
+
             formData.append("registration_number", values.registration_number.trim());
             formData.append("name_model", values.name_model.trim());
             formData.append("type", values.type);
@@ -381,29 +406,29 @@ const Vehicle = () => {
             sortable: false,
             maxWidth: "20px",
         },
-        {
-            name: "Image",
-            selector: (row) => {
-                if (row.image) {
-                    const apiUrl = process.env.REACT_APP_API_URL || "http://localhost:8000";
-                    return (
-                        <img
-                            src={`${apiUrl}/${row.image}`}
-                            alt="Vehicle"
-                            style={{
-                                width: "45px",
-                                height: "35px",
-                                objectFit: "cover",
-                                borderRadius: "4px",
-                                border: "1px solid #ddd",
-                            }}
-                        />
-                    );
-                }
-                return <span className="text-muted">No Image</span>;
-            },
-            maxWidth: "80px",
-        },
+        // {
+        //     name: "Image",
+        //     selector: (row) => {
+        //         if (row.image) {
+        //             const apiUrl = process.env.REACT_APP_API_URL || "http://localhost:8000";
+        //             return (
+        //                 <img
+        //                     src={`${apiUrl}/${row.image}`}
+        //                     alt="Vehicle"
+        //                     style={{
+        //                         width: "45px",
+        //                         height: "35px",
+        //                         objectFit: "cover",
+        //                         borderRadius: "4px",
+        //                         border: "1px solid #ddd",
+        //                     }}
+        //                 />
+        //             );
+        //         }
+        //         return <span className="text-muted">No Image</span>;
+        //     },
+        //     maxWidth: "80px",
+        // },
         {
             name: "Reg Number",
             selector: (row) => row.registration_number,
@@ -441,7 +466,7 @@ const Vehicle = () => {
         },
         {
             name: "Cost",
-            selector: (row) => `$${row.acquisition_cost}`,
+            selector: (row) => `${row.acquisition_cost}`,
             sortable: true,
             sortField: "acquisition_cost",
             minWidth: "100px",
@@ -531,6 +556,34 @@ const Vehicle = () => {
                                             />
                                         </CardHeader>
                                         <CardBody>
+                                            <Row className="mb-3 align-items-center">
+                                                <Col md={4}>
+                                                    <Label for="filter-type" className="form-label mb-1">Filter by Type</Label>
+                                                    <Select
+                                                        id="filter-type"
+                                                        isMulti
+                                                        options={typeOptions}
+                                                        value={typeOptions.filter(opt => selectedType.includes(opt.value))}
+                                                        onChange={handleTypeFilterChange}
+                                                        placeholder="All Types"
+                                                        isClearable
+                                                        isDisabled={isPageLoading}
+                                                    />
+                                                </Col>
+                                                <Col md={4}>
+                                                    <Label for="filter-status" className="form-label mb-1">Filter by Status</Label>
+                                                    <Select
+                                                        id="filter-status"
+                                                        isMulti
+                                                        options={statusOptions}
+                                                        value={statusOptions.filter(opt => selectedStatus.includes(opt.value))}
+                                                        onChange={handleStatusFilterChange}
+                                                        placeholder="All Statuses"
+                                                        isClearable
+                                                        isDisabled={isPageLoading}
+                                                    />
+                                                </Col>
+                                            </Row>
                                             <div id="vehicleList">
                                                 <div className="table-responsive table-card mt-1 mb-1 text-right">
                                                     <DataTable
