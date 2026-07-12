@@ -96,6 +96,13 @@ export const ENDPOINTS = {
         SEARCH: `${V1}/currencies/search`,
     },
 
+    // Driver endpoints
+    DRIVERS: {
+        BASE: `${V1}/drivers`,
+        BY_ID: (id) => `${V1}/drivers/${id}`,
+        SEARCH: `${V1}/drivers/search`,
+    },
+
     // Email endpoints
     EMAIL_SETUPS: {
         BASE: `${V1}/email-setups`,
