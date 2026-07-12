@@ -129,6 +129,13 @@ export const ENDPOINTS = {
         SEARCH: `${V1}/vehicles/search`,
     },
 
+    // Maintenance Logs endpoints
+    MAINTENANCE_LOGS: {
+        BASE: `${V1}/maintenance-logs`,
+        BY_ID: (id) => `${V1}/maintenance-logs/${id}`,
+        SEARCH: `${V1}/maintenance-logs/search`,
+    },
+
     // Admin endpoints
     ADMIN: {
         LOGIN_ATTEMPTS: `${V1}/admin/auth/login-attempts`,

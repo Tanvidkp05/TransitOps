@@ -18,6 +18,7 @@ import RoleMaster from "../pages/Master/RoleMaster";
 import CurrencyMaster from "../pages/Master/CurrencyMaster";
 import LoginAttemptLogs from "../pages/Master/LoginAttemptLogs";
 import Vehicle from "../pages/Master/Vehicle";
+import MaintenanceLog from "../pages/Master/MaintenanceLog";
 
 const authProtectedRoutes = [
     { path: "/profile", component: <UserProfile /> },
@@ -38,6 +39,7 @@ const authProtectedRoutes = [
     { path: "/currency-master", component: <CurrencyMaster /> },
     { path: "/login-attempt-logs", component: <LoginAttemptLogs /> },
     { path: "/vehicle", component: <Vehicle /> },
+    { path: "/maintenance-log", component: <MaintenanceLog /> },
     {
         path: "/",
         exact: true,
