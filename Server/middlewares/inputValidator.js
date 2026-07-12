@@ -322,6 +322,7 @@ export const createDriverValidation = [
         .notEmpty().withMessage('status is required')
         .isIn(['Available', 'On Trip', 'Off Duty', 'Suspended'])
         .withMessage('status must be one of: Available, On Trip, Off Duty, Suspended'),
+    booleanValidator('isActive'),
     handleValidationErrors,
 ];
 
@@ -363,6 +364,7 @@ export const updateDriverValidation = [
         .optional()
         .isIn(['Available', 'On Trip', 'Off Duty', 'Suspended'])
         .withMessage('status must be one of: Available, On Trip, Off Duty, Suspended'),
+    booleanValidator('isActive'),
     handleValidationErrors,
 ];
 
@@ -454,7 +456,7 @@ export const allowedCompanyFields = [
 
 export const allowedDriverFields = [
     'name', 'licenseNumber', 'licenseCategory', 'licenseExpiryDate',
-    'contactNumber', 'safetyScore', 'status'
+    'contactNumber', 'safetyScore', 'status', 'isActive'
 ];
 
 export const allowedSearchFields = [
