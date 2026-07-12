@@ -169,6 +169,11 @@ export const ENDPOINTS = {
         LATEST_FUEL: (vehicleId) => `${V1}/expenses/latest-fuel/${vehicleId}`,
     },
 
+    // Analytics endpoints
+    ANALYTICS: {
+        SUMMARY: `${V1}/analytics/summary`,
+    },
+
     // Admin endpoints
     ADMIN: {
         LOGIN_ATTEMPTS: `${V1}/admin/auth/login-attempts`,
